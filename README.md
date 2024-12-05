@@ -6,6 +6,7 @@ Python3.8をインストールする
 
 ssl認証をしています
 西村から証明書をもらうか、自分で作成してください
+https://memorandom.whitepenguins.com/posts/windows-pem-python/
 
 ターミナルを立ち上げて以下のコマンドを順に実行
 py -3.8 -m venv env
