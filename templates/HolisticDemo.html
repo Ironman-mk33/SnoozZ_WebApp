@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holistic Full-Body and Face Tracking</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+
+        .camera-container {
+            position: relative;
+            border: 5px solid #ccc;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+        }
+
+        .fps-display {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 5px 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        video {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="camera-container">
+        <canvas id="canvas"></canvas>
+        <video id="video" playsinline></video>
+        <div id="fpsDisplay" class="fps-display">FPS: 0</div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+
+        let frameCount = 0;
+        let lastTimestamp = performance.now();
+
+        // FPSを計算して更新
+        function updateFPS() {
+            frameCount++;
+            const now = performance.now();
+            const elapsed = now - lastTimestamp;
+            if (elapsed >= 1000) {
+                const fps = Math.round((frameCount / elapsed) * 1000);
+                fpsDisplay.textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastTimestamp = now;
+            }
+        }
+
+        // Mediapipe Holistic設定
+        const holistic = new Holistic({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`,
+        });
+
+        holistic.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: true,
+            smoothSegmentation: true,
+            refineFaceLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+        });
+
+        holistic.onResults((results) => {
+            canvasElement.width = results.image.width;
+            canvasElement.height = results.image.height;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            // 全身のランドマークを描画
+            if (results.poseLandmarks) {
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+                drawLandmarks(canvasCtx, results.poseLandmarks, { color: '#FF0000', lineWidth: 2 });
+            }
+            if (results.faceLandmarks) {
+                drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 1 });
+                drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_RIGHT_EYE, { color: '#FF3030', lineWidth: 1 });
+                drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_LEFT_EYE, { color: '#30FF30', lineWidth: 1 });
+                drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_FACE_OVAL, { color: '#E0E0E0', lineWidth: 1 });
+            }
+            if (results.leftHandLandmarks) {
+                drawConnectors(canvasCtx, results.leftHandLandmarks, HAND_CONNECTIONS, { color: '#00FFFF', lineWidth: 2 });
+                drawLandmarks(canvasCtx, results.leftHandLandmarks, { color: '#FF0000', lineWidth: 2 });
+            }
+            if (results.rightHandLandmarks) {
+                drawConnectors(canvasCtx, results.rightHandLandmarks, HAND_CONNECTIONS, { color: '#00FFFF', lineWidth: 2 });
+                drawLandmarks(canvasCtx, results.rightHandLandmarks, { color: '#FF0000', lineWidth: 2 });
+            }
+
+            canvasCtx.restore();
+            updateFPS();
+        });
+
+        // カメラの起動
+        async function startCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 640, height: 480, frameRate: { ideal: 60, max: 60 } },
+            });
+
+            videoElement.srcObject = stream;
+            videoElement.play();
+
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await holistic.send({ image: videoElement });
+                },
+                width: 640,
+                height: 480,
+            });
+            camera.start();
+        }
+
+        startCamera();
+    </script>
+</body>
+
+</html>

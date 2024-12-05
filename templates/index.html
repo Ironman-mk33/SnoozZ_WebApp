@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AreTuneTech">
+    <title>AreTuneTech</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 text-gray-900">
+    <!-- ヘッダー -->
+    <header class="bg-white shadow-md">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <a href="#" class="text-2xl font-bold text-blue-600">AreTuneTech</a>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="py-8">
+        <div class="container mx-auto px-4">
+            <h1 class="text-3xl font-bold text-center mb-8">Apps</h1>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- SnoozZメイン画面 -->
+                <a href="/SnoozzMainView" class="block bg-white p-6 rounded shadow hover:shadow-lg transition">
+                    <h2 class="text-xl font-bold text-blue-600 mb-2">SnoozZ</h2>
+                    <p class="text-gray-600">瞬きからあなたの眠気を検知、居眠りを未然に防ぎます。</p>
+                </a>
+
+                <!-- HolisticDemo -->
+                <a href="/HolisticDemo" class="block bg-white p-6 rounded shadow hover:shadow-lg transition">
+                    <h2 class="text-xl font-bold text-blue-600 mb-2">顔全身検出デモ</h2>
+                    <p class="text-gray-600">Holisticの検出デモ用</p>
+                </a>
+
+                <!-- Snoozz For Debug -->
+                <a href="/DevView" class="block bg-white p-6 rounded shadow hover:shadow-lg transition">
+                    <h2 class="text-xl font-bold text-blue-600 mb-2">開発</h2>
+                    <p class="text-gray-600">テスト環境</p>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-4 text-center">
+            <p>&copy; 2024 AreTuneTech.</p>
+        </div>
+    </footer>
+</body>
+
+</html>

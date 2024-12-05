@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Mesh with Eye State and FPS</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+
+        .camera-container {
+            position: relative;
+            border: 5px solid #ccc;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+        }
+
+        .fps-display {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 5px 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .indicator-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .indicator {
+            display: inline-block;
+            width: 300px;
+            height: 50px;
+            line-height: 50px;
+            border-radius: 10px;
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .open {
+            background-color: green;
+        }
+
+        .closed {
+            background-color: red;
+        }
+
+        video {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="camera-container">
+        <canvas id="canvas"></canvas>
+        <video id="video" playsinline></video>
+        <div id="fpsDisplay" class="fps-display">FPS: 0</div>
+    </div>
+    <div class="indicator-container">
+        <div id="eyeState" class="indicator">Loading...</div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const eyeStateElement = document.getElementById('eyeState');
+
+        const EAR_THRESHOLD = 0.1; // 閾値（目を閉じているか開いているかを判断）
+
+        let frameCount = 0;
+        let lastTimestamp = performance.now();
+
+        // EAR計算用の目のランドマークインデックス
+        const LEFT_EYE = [362, 385, 387, 263, 373, 380];
+        const RIGHT_EYE = [33, 160, 158, 133, 153, 144];
+
+        function calculateEAR(landmarks, eyeIndices) {
+            const p1 = landmarks[eyeIndices[1]];
+            const p2 = landmarks[eyeIndices[5]];
+            const p3 = landmarks[eyeIndices[2]];
+            const p4 = landmarks[eyeIndices[4]];
+            const p0 = landmarks[eyeIndices[0]];
+            const p3_ = landmarks[eyeIndices[3]];
+
+            // 縦方向の距離
+            const vertical1 = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+            const vertical2 = Math.sqrt((p4.x - p3.x) ** 2 + (p4.y - p3.y) ** 2);
+            // 横方向の距離
+            const horizontal = Math.sqrt((p0.x - p3_.x) ** 2 + (p0.y - p3_.y) ** 2);
+
+            // EAR計算
+            return (vertical1 + vertical2) / (2.0 * horizontal);
+        }
+
+        // FPSを計算して更新
+        function updateFPS() {
+            frameCount++;
+            const now = performance.now();
+            const elapsed = now - lastTimestamp;
+            if (elapsed >= 1000) {
+                const fps = Math.round((frameCount / elapsed) * 100000) / 100;
+                fpsDisplay.textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastTimestamp = now;
+            }
+        }
+
+        // Mediapipe FaceMesh設定
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+        });
+
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+        });
+
+        faceMesh.onResults((results) => {
+            canvasElement.width = results.image.width;
+            canvasElement.height = results.image.height;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const landmarks = results.multiFaceLandmarks[0];
+
+                // 左目と右目のEARを計算
+                const leftEAR = calculateEAR(landmarks, LEFT_EYE);
+                const rightEAR = calculateEAR(landmarks, RIGHT_EYE);
+                const avgEAR = (leftEAR + rightEAR) / 2;
+
+                // メッシュを描画
+                drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 1 });
+                drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: '#FF3030', lineWidth: 1 });
+                drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: '#30FF30', lineWidth: 1 });
+                drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, { color: '#E0E0E0', lineWidth: 1 });
+
+                // EARに基づいてインジケータの状態を更新
+                if (avgEAR > EAR_THRESHOLD) {
+                    eyeStateElement.textContent = "Open";
+                    eyeStateElement.className = "indicator open";
+                } else {
+                    eyeStateElement.textContent = "Closed";
+                    eyeStateElement.className = "indicator closed";
+                }
+            } else {
+                eyeStateElement.textContent = "No Face Detected";
+                eyeStateElement.className = "indicator closed";
+            }
+
+            canvasCtx.restore();
+            updateFPS();
+        });
+
+        // 使用可能なカメラデバイスを取得
+        async function getCameras() {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            // カメラデバイス (videoinput) を抽出
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            return videoDevices;
+        }
+
+        // 特定のカメラを選択して起動
+        async function startCamera(deviceId) {
+            const constraints = {
+                video: {
+                    deviceId: deviceId ? { exact: deviceId } : undefined, // カメラを指定 (デフォルトは自動選択)
+                    width: 640, // 解像度を指定
+                    height: 480,
+                    frameRate: { ideal: 60, max: 60 } // FPS を指定
+                }
+            };
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+                // 映像を <video> 要素に設定
+                const videoElement = document.querySelector('video');
+                videoElement.srcObject = stream;
+                videoElement.play();
+
+                const camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        await faceMesh.send({ image: videoElement }); // FaceMesh にフレームを送信
+                    },
+                    width: 640,
+                    height: 480,
+                });
+                camera.start(); // カメラの処理を開始
+
+            } catch (error) {
+                console.error('Error accessing the camera:', error);
+            }
+        }
+
+        // カメラ選択と起動処理
+        async function init() {
+            const cameras = await getCameras();
+            console.log('Available Cameras:', cameras);
+
+            if (cameras.length > 0) {
+                // 最初のカメラを使用
+                await startCamera(cameras[0].deviceId);
+            } else {
+                console.error('No cameras found.');
+            }
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
