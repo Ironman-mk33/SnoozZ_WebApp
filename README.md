@@ -16,6 +16,8 @@ py -3.8 -m venv env
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 
+※失敗したら、PowerShellを管理者権限で開いて「PowerShell Set-ExecutionPolicy RemoteSigned」を実行
+
 EXE化するコマンド
 pyinstaller -F --add-data "ssl:ssl" --add-data "templates:templates" --add-data "tools:tools"  --onefile app.py
 
