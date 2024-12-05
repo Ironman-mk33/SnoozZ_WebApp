@@ -34,18 +34,90 @@
 
         .fps-display {
             position: absolute;
-            top: 10px;
+            top: 5px;
             left: 10px;
-            padding: 5px 10px;
-            background-color: rgba(0, 0, 0, 0.7);
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
             color: white;
-            font-size: 14px;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .ear-display {
+            position: absolute;
+            top: 30px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .blinktime-display {
+            position: absolute;
+            top: 55px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .durmean-display {
+            position: absolute;
+            top: 80px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .long10-display {
+            position: absolute;
+            top: 105px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .slpc-display {
+            position: absolute;
+            top: 130px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .slpd-display {
+            position: absolute;
+            top: 155px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
             font-weight: bold;
             border-radius: 5px;
         }
 
         .indicator-container {
-            margin-top: 20px;
+            margin-top: 10px;
             text-align: center;
         }
 
@@ -71,6 +143,26 @@
         video {
             display: none;
         }
+
+        /* 赤い背景で警告表示 */
+        .warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 0, 0, 0.8);
+            color: rgb(47, 0, 0);
+            font-size: 80px;
+            font-weight: bold;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            writing-mode: vertical-rl;
+            /* 縦書き */
+        }
     </style>
 </head>
 
@@ -79,9 +171,23 @@
         <canvas id="canvas"></canvas>
         <video id="video" playsinline></video>
         <div id="fpsDisplay" class="fps-display">FPS: 0</div>
+        <div id="earDisplay" class="ear-display">EAR: 0</div>
+        <div id="blinktimeDisplay" class="blinktime-display">BlinkTime: 0</div>
+        <div id="durmeanDisplay" class="durmean-display">DurMean: 0</div>
+        <div id="long10Display" class="long10-display">Long10: 0</div>
+        <div id="slpcDisplay" class="slpc-display">SleapnessC: 0</div>
+        <div id="slpdDisplay" class="slpd-display">SleapnessD: 0</div>
     </div>
     <div class="indicator-container">
         <div id="eyeState" class="indicator">Loading...</div>
+        <!-- グリッド表示用のエリア -->
+        <div id="blinkDataGrid"
+            style="display: grid; grid-template-columns: 1fr; gap: 5px; margin-top: 10px; width: 100%; max-width: 400px; border: 1px solid #ccc; border-radius: 5px; overflow: hidden;">
+        </div>
+    </div>
+
+    <div id="warningMessage" class="warning" style="display: none;">
+        警告 ‼ 眠気検知
     </div>
 
     <script>
@@ -91,7 +197,19 @@
         const fpsDisplay = document.getElementById('fpsDisplay');
         const eyeStateElement = document.getElementById('eyeState');
 
-        const EAR_THRESHOLD = 0.1; // 閾値（目を閉じているか開いているかを判断）
+        // EAR閾値とタイムスタンプ用変数
+        const EAR_THRESHOLD = 0.1; // 目を閉じているとみなす閾値
+        let blinkStartTime = null; // 瞬き開始時刻
+        let blinkDurations = [];   // 瞬きの継続時間リスト
+        // 瞬きデータを保持する配列
+        let blinkData = []; // { timestamp, duration } のオブジェクト配列
+
+        let DurMean = 0.0;
+        let DurCri = 100.0;//まずは決め打ち
+        let Long10 = 0.0;
+        let SleapnessC = 0.0;
+        let SleapnessD = 0.0;
+
 
         let frameCount = 0;
         let lastTimestamp = performance.now();
@@ -99,6 +217,131 @@
         // EAR計算用の目のランドマークインデックス
         const LEFT_EYE = [362, 385, 387, 263, 373, 380];
         const RIGHT_EYE = [33, 160, 158, 133, 153, 144];
+
+
+        // 日本時間でグリッドを更新
+        function updateBlinkDataGrid() {
+            const grid = document.getElementById('blinkDataGrid');
+            grid.innerHTML = ''; // 既存のグリッド内容をクリア
+
+            // グリッドのヘッダーを作成
+            const headerRow = document.createElement('div');
+            headerRow.style.display = 'grid';
+            headerRow.style.gridTemplateColumns = '1fr 1fr';
+            headerRow.style.fontWeight = 'bold';
+            headerRow.style.backgroundColor = '#ddd';
+            headerRow.style.borderBottom = '2px solid #aaa';
+
+            const timeHeader = document.createElement('div');
+            timeHeader.textContent = 'Time';
+            timeHeader.style.padding = '5px';
+            timeHeader.style.textAlign = 'center';
+
+            const durationHeader = document.createElement('div');
+            durationHeader.textContent = 'Duration';
+            durationHeader.style.padding = '5px';
+            durationHeader.style.textAlign = 'center';
+
+            headerRow.appendChild(timeHeader);
+            headerRow.appendChild(durationHeader);
+            grid.appendChild(headerRow);
+
+            // 瞬目データを逆順で表示
+            blinkData.slice().reverse().forEach((data) => {
+                const row = document.createElement('div');
+                row.style.display = 'grid';
+                row.style.gridTemplateColumns = '1fr 1fr';
+                row.style.borderBottom = '1px solid #ddd';
+
+                // タイムスタンプを日本時間でフォーマット
+                const time = new Intl.DateTimeFormat('ja-JP', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                }).format(data.timestamp);
+
+                const duration = `${Math.round(data.duration * 100) / 100} ms`;
+
+                const timeCell = document.createElement('div');
+                timeCell.textContent = time;
+                timeCell.style.padding = '5px';
+                timeCell.style.textAlign = 'center';
+
+                const durationCell = document.createElement('div');
+                durationCell.textContent = duration;
+                durationCell.style.padding = '5px';
+                durationCell.style.textAlign = 'center';
+
+                row.appendChild(timeCell);
+                row.appendChild(durationCell);
+                grid.appendChild(row);
+            });
+        }
+
+        // 瞬き時間を追跡
+        function trackBlink(avgEAR, timestamp) {
+            const FIVE_MINUTES = 5 * 60 * 1000; // 5分のミリ秒
+            const currentTime = Date.now(); // 現在の時刻
+
+            // 古いデータを削除（5分以上前のデータを除外）
+            blinkData = blinkData.filter(data => currentTime - data.timestamp <= FIVE_MINUTES);
+
+            if (avgEAR <= EAR_THRESHOLD) {
+                // 目が閉じ始めた場合
+                if (blinkStartTime === null) {
+                    blinkStartTime = timestamp; // 瞬き開始時間を記録
+                }
+            } else {
+                // 目が開いた場合
+                if (blinkStartTime !== null) {
+                    const blinkDuration = timestamp - blinkStartTime; // 瞬きの継続時間を計算
+                    blinkData.push({ timestamp: currentTime, duration: blinkDuration }); // データを配列に追加
+
+                    console.log(`Blink Duration: ${blinkDuration} ms`);
+                    blinktimeDisplay.textContent = `BlinkTime: ${Math.round(blinkDuration * 100) / 100} ms`;
+                    blinkStartTime = null; // 瞬き状態をリセット
+
+                    // グリッドを更新
+                    updateBlinkDataGrid();
+                }
+            }
+
+            // durMeanを計算
+            if (blinkData.length > 0) {
+                const totalDuration = blinkData.reduce((sum, data) => sum + data.duration, 0);
+                DurMean = totalDuration / blinkData.length;
+                durmeanDisplay.textContent = `DurMean: ${Math.round(DurMean * 100) / 100} ms`;
+                console.log(`DurMean: ${DurMean} ms`);
+            } else {
+                console.log("No blink data to calculate durMean.");
+            }
+
+            // DurCriより多いものの個数を集計
+            const Nlong = blinkData.filter(data => data.duration > DurCri * 1.1).length;
+            const NAnother = blinkData.length - Nlong;
+            Long10 = (Nlong / (Nlong + NAnother)) * 100;
+            long10Display.textContent = `Long10: ${Math.round(Long10 * 100) / 100}`;
+            // デバッグ用：現在の瞬きデータをログに出力
+            console.log("Current Blink Data:", blinkData);
+
+            SleapnessC = 1.238 + 0.046 * Long10
+            if (SleapnessC === 0) {
+                slpcDisplay.textContent = `SleapnessC: 0`;
+            } else {
+                slpcDisplay.textContent = `SleapnessC: ${Math.round(SleapnessC * 100) / 100}`;
+            }
+
+            SleapnessD = -4.378 + 0.029 * DurMean
+
+            if (SleapnessD === 0) {
+                slpdDisplay.textContent = `SleapnessD: 0`;
+            } else {
+                slpdDisplay.textContent = `SleapnessD: ${Math.round(SleapnessD * 100) / 100}`;
+            }
+
+
+
+        }
 
         function calculateEAR(landmarks, eyeIndices) {
             const p1 = landmarks[eyeIndices[1]];
@@ -144,6 +387,7 @@
         });
 
         faceMesh.onResults((results) => {
+            const timestamp = performance.now(); // 現在の時刻を取得
             canvasElement.width = results.image.width;
             canvasElement.height = results.image.height;
 
@@ -158,6 +402,12 @@
                 const leftEAR = calculateEAR(landmarks, LEFT_EYE);
                 const rightEAR = calculateEAR(landmarks, RIGHT_EYE);
                 const avgEAR = (leftEAR + rightEAR) / 2;
+
+
+                earDisplay.textContent = `EAR: ${Math.round(avgEAR * 100) / 100}`;
+
+                // 瞬き時間を追跡
+                trackBlink(avgEAR, timestamp);
 
                 // メッシュを描画
                 drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 1 });
@@ -236,6 +486,39 @@
         }
 
         init();
+
+        // 1分おきに SleapnessD をチェックするタイマーを設定
+        setInterval(() => {
+            if (SleapnessC > 3 || SleapnessC > 3) {
+                console.warn("警告");
+                document.getElementById('warningMessage').style.display = 'flex';
+            } else {
+                console.log("正常");
+                document.getElementById('warningMessage').style.display = 'none';
+            }
+        }, 5 * 1000); // 1分ごとに実行
+
+        /*
+        処理A：
+            基準瞬目持続時間の計測
+            DurCri[ms]＝（5分間にした瞬目持続時間の合計[ms]/瞬目回数[回]）/300000[ms]
+
+        処理B：B～Dは直近5分間の瞬目を対象とする→5分たった瞬目データは削除する
+            DurMean[ms]=（5分間にした瞬目持続時間の合計[ms]/瞬目回数[回]）
+            Long10=Nlong/(Nlong+NAnother)
+            Nlong = DurCri*1.1以上の個数
+            NAnother = 瞬目回数 - Nlong
+        処理C：
+            SleapnessC=1.238+0.046*Long10
+        処理D：
+            SleapnessD=-4.378+0.029*DurMean
+
+        処理E：1分おきに判定
+            SleapnessC>3||SleapnessD>3
+            →警告
+            SleapnessC=<3&&SleapnessD=<3
+            →Bに戻る
+        */
     </script>
 </body>
 
