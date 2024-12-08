@@ -119,25 +119,31 @@
         .indicator-container {
             margin-top: 10px;
             text-align: center;
+            width: 100%;
         }
 
         .indicator {
             display: inline-block;
-            width: 300px;
-            height: 50px;
-            line-height: 50px;
+            width: 100%;
+            height: 80px;
+            line-height: 80px;
             border-radius: 10px;
-            font-size: 20px;
+            font-size: 70px;
             font-weight: bold;
             color: white;
+            text-align: center;
         }
 
         .open {
-            background-color: green;
+            background-color: rgb(159, 225, 255);
         }
 
         .closed {
-            background-color: red;
+            background-color: rgb(255, 201, 201);
+        }
+
+        .nofacedetected {
+            background-color: gray;
         }
 
         video {
@@ -163,6 +169,41 @@
             writing-mode: vertical-rl;
             /* 縦書き */
         }
+
+        .tab-header {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            border: none;
+            border-bottom: 2px solid transparent;
+            transition: background-color 0.3s, border-bottom-color 0.3s;
+        }
+
+        .tab-button.active {
+            background-color: #ffffff;
+            border-bottom: 2px solid #007bff;
+            font-weight: bold;
+        }
+
+        .tab-button:hover {
+            background-color: #e0e0e0;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
     </style>
 </head>
 
@@ -179,11 +220,45 @@
         <div id="slpdDisplay" class="slpd-display">SleapnessD: 0</div>
     </div>
     <div class="indicator-container">
-        <div id="eyeState" class="indicator">Loading...</div>
-        <!-- グリッド表示用のエリア -->
-        <div id="blinkDataGrid"
-            style="display: grid; grid-template-columns: 1fr; gap: 5px; margin-top: 10px; width: 100%; max-width: 400px; border: 1px solid #ccc; border-radius: 5px; overflow: hidden;">
+        <!-- タブヘッダー -->
+        <div class="tab-header">
+            <button class="tab-button active" onclick="openTab('eyeStateTab')">Eye State</button>
+            <button class="tab-button" onclick="openTab('blinkDataTab')">Blink Data</button>
+            <button class="tab-button" onclick="openTab('settingTab')">Setting</button>
         </div>
+        <!-- タブコンテンツ -->
+        <div class="tab-content" id="eyeStateTab">
+            <div id="eyeState" class="indicator">Loading...</div>
+        </div>
+        <div class="tab-content" id="blinkDataTab" style="display:none;">
+            <div id="blinkDataGrid"
+                style="display: grid; grid-template-columns: 1fr; gap: 5px; margin-top: 10px; width: 100%; border: 1px solid #ccc; border-radius: 5px; overflow: hidden;">
+            </div>
+        </div>
+        <div class="tab-content" id="settingTab" style="display:none;">
+            <div style="margin-top: 10px; width: 100%; display: flex; flex-direction: column; align-items: flex-start;">
+                <!-- durCri設定 -->
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="durCriSlider" style="margin-right: 10px; width: 30%;">DurCri: </label>
+                    <input type="number" id="durCriValue" min="50" max="200" step="5" value="100"
+                        style="width: 10%; margin-right: 10px;" oninput="updateDurCriSlider(this.value)">
+                    <input type="range" id="durCriSlider" min="50" max="200" step="5" value="100" style="width: 70%;"
+                        oninput="updateDurCriValue(this.value)">
+                </div>
+
+                <!-- 瞬目EAR閾値 -->
+                <div style="display: flex; align-items: center; width: 100%;">
+                    <label for="earThrSlider" style="margin-right: 10px; width: 30%;">EarThr: </label>
+                    <input type="number" id="earThrValue" min="0.0" max="1.0" step="0.01" value="0.1"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('earThrSlider',this.value,'EAR_THRESHOLD')">
+                    <input type="range" id="earThrSlider" min="0.0" max="1.0" step="0.01" value="0.1"
+                        style="width: 70%;" oninput="updateValue('earThrValue',this.value,'EAR_THRESHOLD')">
+                </div>
+            </div>
+        </div>
+
+
     </div>
 
     <div id="warningMessage" class="warning" style="display: none;">
@@ -198,14 +273,14 @@
         const eyeStateElement = document.getElementById('eyeState');
 
         // EAR閾値とタイムスタンプ用変数
-        const EAR_THRESHOLD = 0.1; // 目を閉じているとみなす閾値
+        var EAR_THRESHOLD = 0.1; // 目を閉じているとみなす閾値
         let blinkStartTime = null; // 瞬き開始時刻
         let blinkDurations = [];   // 瞬きの継続時間リスト
         // 瞬きデータを保持する配列
         let blinkData = []; // { timestamp, duration } のオブジェクト配列
 
         let DurMean = 0.0;
-        let DurCri = 100.0;//まずは決め打ち
+        let DurCri = 130.0;//まずは決め打ち
         let Long10 = 0.0;
         let SleapnessC = 0.0;
         let SleapnessD = 0.0;
@@ -217,6 +292,79 @@
         // EAR計算用の目のランドマークインデックス
         const LEFT_EYE = [362, 385, 387, 263, 373, 380];
         const RIGHT_EYE = [33, 160, 158, 133, 153, 144];
+
+
+        // 初期設定の読み込み
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedDurCri = localStorage.getItem("DurCri");
+            const defaultDurCri = savedDurCri ? parseFloat(savedDurCri) : 100; // 保存された値、またはデフォルト値
+            document.getElementById("durCriSlider").value = defaultDurCri;
+            document.getElementById("durCriValue").value = defaultDurCri;
+            DurCri = defaultDurCri;
+            console.log(`Loaded DurCri: ${DurCri}`);
+
+            const savedEarThr = localStorage.getItem("EAR_THRESHOLD");
+            const defaultEarThr = savedEarThr ? parseFloat(savedEarThr) : 0.1; // 保存された値、またはデフォルト値
+            document.getElementById("earThrSlider").value = defaultEarThr;
+            document.getElementById("earThrValue").value = defaultEarThr;
+            window['EAR_THRESHOLD'] = defaultEarThr;
+            console.log(`Loaded EAR_THRESHOLD: ${EAR_THRESHOLD}`);
+        });
+
+        // 汎用的なスライダーとテキストボックスの同期関数
+        function updateValue(elementId, value, variableName) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.value = value; // 対象の要素を更新
+            }
+            window[variableName] = parseFloat(value); // グローバル変数を更新
+            saveToLocalStorage(variableName, window[variableName]); // 保存関数を呼び出し
+        }
+
+        // 汎用的なローカルストレージ保存関数
+        function saveToLocalStorage(key, value) {
+            localStorage.setItem(key, value);
+            console.log(`Saved ${key}: ${value}`);
+        }
+
+
+
+        // スライダーとテキストボックスの同期
+        function updateDurCriValue(value) {
+            const durCriValueElement = document.getElementById('durCriValue');
+            durCriValueElement.value = value;
+            DurCri = parseFloat(value);
+            saveDurCri(DurCri); // 保存
+        }
+
+        function updateDurCriSlider(value) {
+            const durCriSliderElement = document.getElementById('durCriSlider');
+            durCriSliderElement.value = value;
+            DurCri = parseFloat(value);
+            saveDurCri(DurCri); // 保存
+        }
+
+        // 値をローカルストレージに保存
+        function saveDurCri(value) {
+            localStorage.setItem("DurCri", value);
+            console.log(`Saved DurCri: ${value}`);
+        }
+
+        function openTab(tabId) {
+            // タブのコンテンツを非表示
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => content.style.display = 'none');
+
+            // 全てのボタンのアクティブクラスを削除
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => button.classList.remove('active'));
+
+            // 選択されたタブを表示
+            document.getElementById(tabId).style.display = 'flex';
+
+            // 選択されたボタンにアクティブクラスを追加
+            event.currentTarget.classList.add('active');
+        }
 
 
         // 日本時間でグリッドを更新
@@ -417,15 +565,15 @@
 
                 // EARに基づいてインジケータの状態を更新
                 if (avgEAR > EAR_THRESHOLD) {
-                    eyeStateElement.textContent = "Open";
+                    eyeStateElement.textContent = "😳";
                     eyeStateElement.className = "indicator open";
                 } else {
-                    eyeStateElement.textContent = "Closed";
+                    eyeStateElement.textContent = "😌";
                     eyeStateElement.className = "indicator closed";
                 }
             } else {
-                eyeStateElement.textContent = "No Face Detected";
-                eyeStateElement.className = "indicator closed";
+                eyeStateElement.textContent = "🫥";
+                eyeStateElement.className = "indicator nofacedetected";
             }
 
             canvasCtx.restore();
@@ -484,6 +632,9 @@
                 console.error('No cameras found.');
             }
         }
+
+        // 初期化処理: 最初のタブを表示
+        document.getElementById('eyeStateTab').style.display = 'flex';
 
         init();
 
