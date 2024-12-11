@@ -19,6 +19,7 @@ pip install -r requirements.txt
 ※失敗したら、PowerShellを管理者権限で開いて「PowerShell Set-ExecutionPolicy RemoteSigned」を実行
 
 EXE化するコマンド
+.\env\Scripts\activate
 pyinstaller -F --add-data "ssl:ssl" --add-data "templates:templates" --add-data "tools:tools"  --onefile app.py
 
 作成者：西村久樹
