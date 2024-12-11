@@ -216,8 +216,8 @@
         <div id="blinktimeDisplay" class="blinktime-display">BlinkTime: 0</div>
         <div id="durmeanDisplay" class="durmean-display">DurMean: 0</div>
         <div id="long10Display" class="long10-display">Long10: 0</div>
-        <div id="slpcDisplay" class="slpc-display">SleapnessC: 0</div>
-        <div id="slpdDisplay" class="slpd-display">SleapnessD: 0</div>
+        <div id="slpcDisplay" class="slpc-display">SleapnessC: Measuring...</div>
+        <div id="slpdDisplay" class="slpd-display">SleapnessD: Measuring...</div>
     </div>
     <div class="indicator-container">
         <!-- タブヘッダー -->
@@ -241,9 +241,10 @@
                 <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
                     <label for="durCriSlider" style="margin-right: 10px; width: 30%;">DurCri: </label>
                     <input type="number" id="durCriValue" min="50" max="200" step="5" value="100"
-                        style="width: 10%; margin-right: 10px;" oninput="updateDurCriSlider(this.value)">
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('durCriSlider',this.value,'DurCri')">
                     <input type="range" id="durCriSlider" min="50" max="200" step="5" value="100" style="width: 70%;"
-                        oninput="updateDurCriValue(this.value)">
+                        oninput="updateValue('durCriValue',this.value,'DurCri')">
                 </div>
 
                 <!-- 瞬目EAR閾値 -->
@@ -272,28 +273,26 @@
         const fpsDisplay = document.getElementById('fpsDisplay');
         const eyeStateElement = document.getElementById('eyeState');
 
-        // EAR閾値とタイムスタンプ用変数
-        var EAR_THRESHOLD = 0.1; // 目を閉じているとみなす閾値
-        var checkInterval = 5; // 眠気をチェックするインターバル[s]
-        let blinkStartTime = null; // 瞬き開始時刻
-        let blinkDurations = [];   // 瞬きの継続時間リスト
-        // 瞬きデータを保持する配列
-        let blinkData = []; // { timestamp, duration } のオブジェクト配列
-
+        //眠気検出用の変数
+        var EarThreshold = 0.1; // 目を閉じているとみなす閾値
+        var CheckInterval = 5; // 眠気をチェックするインターバル[s]
+        let BlinkDatas = []; //瞬きデータを保持する { timestamp, duration } のオブジェクト配列
+        let BlinkStartTime = null; // 瞬き開始時刻
+        let BlinkDurations = [];   // 瞬きの継続時間リスト
         let DurMean = 0.0;
-        let DurCri = 130.0;//まずは決め打ち
+        let DurCri = 130.0;
         let Long10 = 0.0;
         let SleapnessC = 0.0;
         let SleapnessD = 0.0;
-
-
-        let frameCount = 0;
-        let lastTimestamp = performance.now();
+        let CheckSleapness = false;// 眠気をチェックするかのフラグ               
 
         // EAR計算用の目のランドマークインデックス
         const LEFT_EYE = [362, 385, 387, 263, 373, 380];
         const RIGHT_EYE = [33, 160, 158, 133, 153, 144];
 
+        // FPS計算用の変数
+        let FrameCount = 0;
+        let LastTimestamp = performance.now();
 
         // 初期設定の読み込み
         document.addEventListener("DOMContentLoaded", () => {
@@ -308,8 +307,8 @@
             const defaultEarThr = savedEarThr ? parseFloat(savedEarThr) : 0.1; // 保存された値、またはデフォルト値
             document.getElementById("earThrSlider").value = defaultEarThr;
             document.getElementById("earThrValue").value = defaultEarThr;
-            window['EAR_THRESHOLD'] = defaultEarThr;
-            console.log(`Loaded EAR_THRESHOLD: ${EAR_THRESHOLD}`);
+            window['EarThreshold'] = defaultEarThr;
+            console.log(`Loaded EAR_THRESHOLD: ${EarThreshold}`);
         });
 
         // 汎用的なスライダーとテキストボックスの同期関数
@@ -328,29 +327,7 @@
             console.log(`Saved ${key}: ${value}`);
         }
 
-
-
-        // スライダーとテキストボックスの同期
-        function updateDurCriValue(value) {
-            const durCriValueElement = document.getElementById('durCriValue');
-            durCriValueElement.value = value;
-            DurCri = parseFloat(value);
-            saveDurCri(DurCri); // 保存
-        }
-
-        function updateDurCriSlider(value) {
-            const durCriSliderElement = document.getElementById('durCriSlider');
-            durCriSliderElement.value = value;
-            DurCri = parseFloat(value);
-            saveDurCri(DurCri); // 保存
-        }
-
-        // 値をローカルストレージに保存
-        function saveDurCri(value) {
-            localStorage.setItem("DurCri", value);
-            console.log(`Saved DurCri: ${value}`);
-        }
-
+        // タブの切り替え処理
         function openTab(tabId) {
             // タブのコンテンツを非表示
             const tabContents = document.querySelectorAll('.tab-content');
@@ -367,8 +344,7 @@
             event.currentTarget.classList.add('active');
         }
 
-
-        // 日本時間でグリッドを更新
+        // グリッドを更新
         function updateBlinkDataGrid() {
             const grid = document.getElementById('blinkDataGrid');
             grid.innerHTML = ''; // 既存のグリッド内容をクリア
@@ -396,7 +372,7 @@
             grid.appendChild(headerRow);
 
             // 瞬目データを逆順で表示
-            blinkData.slice().reverse().forEach((data) => {
+            BlinkDatas.slice().reverse().forEach((data) => {
                 const row = document.createElement('div');
                 row.style.display = 'grid';
                 row.style.gridTemplateColumns = '1fr 1fr';
@@ -433,65 +409,42 @@
             const currentTime = Date.now(); // 現在の時刻
 
             // 古いデータを削除（5分以上前のデータを除外）
-            blinkData = blinkData.filter(data => currentTime - data.timestamp <= FIVE_MINUTES);
+            BlinkDatas = BlinkDatas.filter(data => currentTime - data.timestamp <= FIVE_MINUTES);
 
-            if (avgEAR <= EAR_THRESHOLD) {
+            if (BlinkDatas.length === 10 && CheckSleapness === false) {
+                CheckSleapness = true;
+            }
+
+            if (avgEAR <= EarThreshold) {
                 // 目が閉じ始めた場合
-                if (blinkStartTime === null) {
-                    blinkStartTime = timestamp; // 瞬き開始時間を記録
+                if (BlinkStartTime === null) {
+                    BlinkStartTime = timestamp; // 瞬き開始時間を記録
                 }
-            } else {
+            }
+            else {
                 // 目が開いた場合
-                if (blinkStartTime !== null) {
-                    const blinkDuration = timestamp - blinkStartTime; // 瞬きの継続時間を計算
-                    blinkData.push({ timestamp: currentTime, duration: blinkDuration }); // データを配列に追加
+                if (BlinkStartTime !== null) {
+                    const blinkDuration = timestamp - BlinkStartTime; // 瞬きの継続時間を計算
+                    BlinkDatas.push({ timestamp: currentTime, duration: blinkDuration }); // データを配列に追加
 
                     console.log(`Blink Duration: ${blinkDuration} ms`);
                     blinktimeDisplay.textContent = `BlinkTime: ${Math.round(blinkDuration * 100) / 100} ms`;
-                    blinkStartTime = null; // 瞬き状態をリセット
+                    BlinkStartTime = null; // 瞬き状態をリセット
 
                     // グリッドを更新
                     updateBlinkDataGrid();
                 }
             }
 
-            // durMeanを計算
-            if (blinkData.length > 0) {
-                const totalDuration = blinkData.reduce((sum, data) => sum + data.duration, 0);
-                DurMean = totalDuration / blinkData.length;
-                durmeanDisplay.textContent = `DurMean: ${Math.round(DurMean * 100) / 100} ms`;
-                console.log(`DurMean: ${DurMean} ms`);
-            } else {
-                console.log("No blink data to calculate durMean.");
+            DurMean = calculateDurMean(BlinkDatas);
+            Long10 = calculateLong10(BlinkDatas);
+            if (CheckSleapness === true) {
+                SleapnessC = calculateSleapnessC(Long10);
+                SleapnessD = calculateSleapnessD(DurMean);
             }
-
-            // DurCriより多いものの個数を集計
-            const Nlong = blinkData.filter(data => data.duration > DurCri * 1.1).length;
-            const NAnother = blinkData.length - Nlong;
-            Long10 = (Nlong / (Nlong + NAnother)) * 100;
-            long10Display.textContent = `Long10: ${Math.round(Long10 * 100) / 100}`;
-            // デバッグ用：現在の瞬きデータをログに出力
-            console.log("Current Blink Data:", blinkData);
-
-            SleapnessC = 1.238 + 0.046 * Long10
-            if (SleapnessC === 0) {
-                slpcDisplay.textContent = `SleapnessC: 0`;
-            } else {
-                slpcDisplay.textContent = `SleapnessC: ${Math.round(SleapnessC * 100) / 100}`;
-            }
-
-            SleapnessD = -4.378 + 0.029 * DurMean
-
-            if (SleapnessD === 0) {
-                slpdDisplay.textContent = `SleapnessD: 0`;
-            } else {
-                slpdDisplay.textContent = `SleapnessD: ${Math.round(SleapnessD * 100) / 100}`;
-            }
-
-
-
         }
 
+        // EARを計算
         function calculateEAR(landmarks, eyeIndices) {
             const p1 = landmarks[eyeIndices[1]];
             const p2 = landmarks[eyeIndices[5]];
@@ -510,16 +463,59 @@
             return (vertical1 + vertical2) / (2.0 * horizontal);
         }
 
-        // FPSを計算して更新
-        function updateFPS() {
-            frameCount++;
+        // DurMeanを計算
+        function calculateDurMean(blinkDatas) {
+            let retDurMean = 0.0
+            if (blinkDatas.length > 0) {
+                const totalDuration = blinkDatas.reduce((sum, data) => sum + data.duration, 0);
+                retDurMean = totalDuration / blinkDatas.length;
+                durmeanDisplay.textContent = `DurMean: ${Math.round(DurMean * 100) / 100} ms`;
+            }
+            return retDurMean;
+        }
+
+        // Long10を計算
+        function calculateLong10(blinkDatas) {
+            const Nlong = blinkDatas.filter(data => data.duration > DurCri * 1.1).length;
+            const NAnother = blinkDatas.length - Nlong;
+            const retLong10 = (Nlong / (Nlong + NAnother)) * 100;
+            long10Display.textContent = `Long10: ${Math.round(retLong10 * 100) / 100}`;
+
+            return retLong10;
+        }
+
+        // SleapnessCを計算
+        function calculateSleapnessC(long10) {
+            const retSlpC = 1.238 + 0.046 * long10
+            if (retSlpC === 0) {
+                slpcDisplay.textContent = `SleapnessC: 0`;
+            } else {
+                slpcDisplay.textContent = `SleapnessC: ${Math.round(retSlpC * 100) / 100}`;
+            }
+            return retSlpC;
+        }
+
+        // SleapnessDを計算
+        function calculateSleapnessD(durMean) {
+            const retSlpD = -4.378 + 0.029 * durMean
+            if (retSlpD === 0) {
+                slpdDisplay.textContent = `SleapnessD: 0`;
+            } else {
+                slpdDisplay.textContent = `SleapnessD: ${Math.round(retSlpD * 100) / 100}`;
+            }
+            return retSlpD;
+        }
+
+        // FPSを計算
+        function calclateFPS() {
+            FrameCount++;
             const now = performance.now();
-            const elapsed = now - lastTimestamp;
+            const elapsed = now - LastTimestamp;
             if (elapsed >= 1000) {
-                const fps = Math.round((frameCount / elapsed) * 100000) / 100;
+                const fps = Math.round((FrameCount / elapsed) * 100000) / 100;
                 fpsDisplay.textContent = `FPS: ${fps}`;
-                frameCount = 0;
-                lastTimestamp = now;
+                FrameCount = 0;
+                LastTimestamp = now;
             }
         }
 
@@ -528,6 +524,7 @@
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
         });
 
+        // Mediapipe FaceMesh設定
         faceMesh.setOptions({
             maxNumFaces: 1,
             refineLandmarks: true,
@@ -535,6 +532,7 @@
             minTrackingConfidence: 0.5,
         });
 
+        // MediaPipeの検出完了イベント
         faceMesh.onResults((results) => {
             const timestamp = performance.now(); // 現在の時刻を取得
             canvasElement.width = results.image.width;
@@ -552,7 +550,6 @@
                 const rightEAR = calculateEAR(landmarks, RIGHT_EYE);
                 const avgEAR = (leftEAR + rightEAR) / 2;
 
-
                 earDisplay.textContent = `EAR: ${Math.round(avgEAR * 100) / 100}`;
 
                 // 瞬き時間を追跡
@@ -565,7 +562,7 @@
                 drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, { color: '#E0E0E0', lineWidth: 1 });
 
                 // EARに基づいてインジケータの状態を更新
-                if (avgEAR > EAR_THRESHOLD) {
+                if (avgEAR > EarThreshold) {
                     eyeStateElement.textContent = "😳";
                     eyeStateElement.className = "indicator open";
                 } else {
@@ -578,7 +575,7 @@
             }
 
             canvasCtx.restore();
-            updateFPS();
+            calclateFPS();
         });
 
         // 使用可能なカメラデバイスを取得
@@ -621,7 +618,7 @@
             }
         }
 
-        // カメラ選択と起動処理
+        // init
         async function init() {
             const cameras = await getCameras();
             console.log('Available Cameras:', cameras);
@@ -632,23 +629,23 @@
             } else {
                 console.error('No cameras found.');
             }
+
+            // 最初のタブを表示
+            document.getElementById('eyeStateTab').style.display = 'flex';
+
+            // 1分おきに SleapnessD をチェックするタイマーを設定
+            setInterval(() => {
+                if (SleapnessC > 3 || SleapnessD > 3) {
+                    console.warn("警告");
+                    document.getElementById('warningMessage').style.display = 'flex';
+                } else {
+                    console.log("正常");
+                    document.getElementById('warningMessage').style.display = 'none';
+                }
+            }, CheckInterval * 1000);
         }
 
-        // 初期化処理: 最初のタブを表示
-        document.getElementById('eyeStateTab').style.display = 'flex';
-
         init();
-
-        // 1分おきに SleapnessD をチェックするタイマーを設定
-        setInterval(() => {
-            if (SleapnessC > 3 || SleapnessC > 3) {
-                console.warn("警告");
-                document.getElementById('warningMessage').style.display = 'flex';
-            } else {
-                console.log("正常");
-                document.getElementById('warningMessage').style.display = 'none';
-            }
-        }, checkInterval * 1000); // ごとに実行
 
         /*
         処理A：

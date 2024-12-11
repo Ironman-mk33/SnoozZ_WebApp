@@ -1,6 +1,6 @@
 from flask import Flask, render_template
 
-app = Flask(__name__)
+app = Flask(__name__,static_folder='resources')
 
 # SSL証明書と秘密鍵のファイルパスを指定します
 ssl_certfile = 'ssl\cert.pem'  # 証明書のパス
