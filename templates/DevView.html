@@ -22,7 +22,7 @@
 
         .camera-container {
             position: relative;
-            border: 5px solid #bbff00;
+            border: 5px solid #7bffd3;
             border-radius: 15px;
             overflow: hidden;
         }
@@ -170,6 +170,26 @@
             /* 縦書き */
         }
 
+        /* キャリブレーション */
+        .Calibrating {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 15%;
+            background-color: rgba(116, 116, 116, 0.8);
+            color: rgb(255, 255, 255);
+            font-size: 30px;
+            font-weight: bold;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            /*writing-mode: vertical-rl;*/
+            /* 縦書き */
+        }
+
         .tab-header {
             display: flex;
             justify-content: center;
@@ -181,6 +201,7 @@
             padding: 10px;
             font-size: 16px;
             cursor: pointer;
+            color: rgb(0, 0, 0);
             background-color: #f0f0f0;
             border: none;
             border-bottom: 2px solid transparent;
@@ -190,11 +211,13 @@
         .tab-button.active {
             background-color: #ffffff;
             border-bottom: 2px solid #007bff;
+            color: #007bff;
             font-weight: bold;
         }
 
         .tab-button:hover {
             background-color: #e0e0e0;
+            color: rgb(0, 0, 0);
         }
 
         .tab-content {
@@ -203,6 +226,28 @@
 
         .tab-content.active {
             display: flex;
+        }
+
+        /* 通常時のボタンスタイル */
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            /* スムーズな切り替え */
+        }
+
+        /* 非活性時のスタイル */
+        button:disabled {
+            background-color: #d3d3d3;
+            /* 灰色 */
+            color: #808080;
+            /* 灰色の文字 */
+            cursor: not-allowed;
+            /* カーソルを禁止マークにする */
         }
     </style>
 </head>
@@ -248,13 +293,39 @@
                 </div>
 
                 <!-- 瞬目EAR閾値 -->
-                <div style="display: flex; align-items: center; width: 100%;">
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
                     <label for="earThrSlider" style="margin-right: 10px; width: 30%;">EarThr: </label>
-                    <input type="number" id="earThrValue" min="0.0" max="1.0" step="0.01" value="0.1"
+                    <input type="number" id="earThrValue" min="0.0" max="1.0" step="0.01" value="0.5"
                         style="width: 10%; margin-right: 10px;"
-                        oninput="updateValue('earThrSlider',this.value,'EAR_THRESHOLD')">
-                    <input type="range" id="earThrSlider" min="0.0" max="1.0" step="0.01" value="0.1"
-                        style="width: 70%;" oninput="updateValue('earThrValue',this.value,'EAR_THRESHOLD')">
+                        oninput="updateValue('earThrSlider',this.value,'EarThreshold')">
+                    <input type="range" id="earThrSlider" min="0.0" max="1.0" step="0.01" value="0.5"
+                        style="width: 70%;" oninput="updateValue('earThrValue',this.value,'EarThreshold')">
+                </div>
+
+                <!-- 正規化閾値 -->
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="earScaleSlider" style="margin-right: 10px; width: 30%;">EarScaleFactor: </label>
+                    <input type="number" id="earScaleValue" min="0.0" max="1.0" step="0.01" value="0.4"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('earScaleSlider',this.value,'EarScaleFactor')">
+                    <input type="range" id="earScaleSlider" min="0.0" max="1.0" step="0.01" value="0.4"
+                        style="width: 70%;" oninput="updateValue('earScaleValue',this.value,'EarScaleFactor')">
+                </div>
+
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="earShiftSlider" style="margin-right: 10px; width: 30%;">EarShiftFactor: </label>
+                    <input type="number" id="earShiftValue" min="0.0" max="10.0" step="0.01" value="0.1"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('earShiftSlider',this.value,'EarShiftFactor')">
+                    <input type="range" id="earShiftSlider" min="0.0" max="1.0" step="0.01" value="0.1"
+                        style="width: 70%;" oninput="updateValue('earShiftValue',this.value,'EarShiftFactor')">
+                </div>
+
+                <!-- Calibration ボタン -->
+                <div style="margin-top: 20px; width: 100%; text-align: center;">
+                    <button id="calibrationButton"
+                        style="padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;"
+                        onclick="startCalibration()">Calibration</button>
                 </div>
             </div>
         </div>
@@ -266,7 +337,11 @@
         Drowsiness detected
     </div>
 
-    <script src="/resources/DevScript.js"></script>
+    <div id="calibratingMessage" class="Calibrating" style="display: none;">
+        Calibrating...
+    </div>
+
+    <script src="/resources/SnoozzMainScript.js"></script>
 
 </body>
 

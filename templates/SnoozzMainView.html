@@ -170,6 +170,26 @@
             /* 縦書き */
         }
 
+        /* キャリブレーション */
+        .Calibrating {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 15%;
+            background-color: rgba(116, 116, 116, 0.8);
+            color: rgb(255, 255, 255);
+            font-size: 30px;
+            font-weight: bold;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            /*writing-mode: vertical-rl;*/
+            /* 縦書き */
+        }
+
         .tab-header {
             display: flex;
             justify-content: center;
@@ -181,6 +201,7 @@
             padding: 10px;
             font-size: 16px;
             cursor: pointer;
+            color: rgb(0, 0, 0);
             background-color: #f0f0f0;
             border: none;
             border-bottom: 2px solid transparent;
@@ -190,11 +211,13 @@
         .tab-button.active {
             background-color: #ffffff;
             border-bottom: 2px solid #007bff;
+            color: #007bff;
             font-weight: bold;
         }
 
         .tab-button:hover {
             background-color: #e0e0e0;
+            color: rgb(0, 0, 0);
         }
 
         .tab-content {
@@ -203,6 +226,28 @@
 
         .tab-content.active {
             display: flex;
+        }
+
+        /* 通常時のボタンスタイル */
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            /* スムーズな切り替え */
+        }
+
+        /* 非活性時のスタイル */
+        button:disabled {
+            background-color: #d3d3d3;
+            /* 灰色 */
+            color: #808080;
+            /* 灰色の文字 */
+            cursor: not-allowed;
+            /* カーソルを禁止マークにする */
         }
     </style>
 </head>
@@ -248,13 +293,39 @@
                 </div>
 
                 <!-- 瞬目EAR閾値 -->
-                <div style="display: flex; align-items: center; width: 100%;">
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
                     <label for="earThrSlider" style="margin-right: 10px; width: 30%;">EarThr: </label>
-                    <input type="number" id="earThrValue" min="0.0" max="1.0" step="0.01" value="0.1"
+                    <input type="number" id="earThrValue" min="0.0" max="1.0" step="0.01" value="0.5"
                         style="width: 10%; margin-right: 10px;"
-                        oninput="updateValue('earThrSlider',this.value,'EAR_THRESHOLD')">
-                    <input type="range" id="earThrSlider" min="0.0" max="1.0" step="0.01" value="0.1"
-                        style="width: 70%;" oninput="updateValue('earThrValue',this.value,'EAR_THRESHOLD')">
+                        oninput="updateValue('earThrSlider',this.value,'EarThreshold')">
+                    <input type="range" id="earThrSlider" min="0.0" max="1.0" step="0.01" value="0.5"
+                        style="width: 70%;" oninput="updateValue('earThrValue',this.value,'EarThreshold')">
+                </div>
+
+                <!-- 正規化閾値 -->
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="earScaleSlider" style="margin-right: 10px; width: 30%;">EarScaleFactor: </label>
+                    <input type="number" id="earScaleValue" min="0.0" max="1.0" step="0.01" value="0.4"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('earScaleSlider',this.value,'EarScaleFactor')">
+                    <input type="range" id="earScaleSlider" min="0.0" max="1.0" step="0.01" value="0.4"
+                        style="width: 70%;" oninput="updateValue('earScaleValue',this.value,'EarScaleFactor')">
+                </div>
+
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="earShiftSlider" style="margin-right: 10px; width: 30%;">EarShiftFactor: </label>
+                    <input type="number" id="earShiftValue" min="0.0" max="10.0" step="0.01" value="0.1"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('earShiftSlider',this.value,'EarShiftFactor')">
+                    <input type="range" id="earShiftSlider" min="0.0" max="1.0" step="0.01" value="0.1"
+                        style="width: 70%;" oninput="updateValue('earShiftValue',this.value,'EarShiftFactor')">
+                </div>
+
+                <!-- Calibration ボタン -->
+                <div style="margin-top: 20px; width: 100%; text-align: center;">
+                    <button id="calibrationButton"
+                        style="padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;"
+                        onclick="startCalibration()">Calibration</button>
                 </div>
             </div>
         </div>
@@ -266,409 +337,12 @@
         Drowsiness detected
     </div>
 
-    <script>
-        const videoElement = document.getElementById('video');
-        const canvasElement = document.getElementById('canvas');
-        const canvasCtx = canvasElement.getContext('2d');
-        const fpsDisplay = document.getElementById('fpsDisplay');
-        const eyeStateElement = document.getElementById('eyeState');
+    <div id="calibratingMessage" class="Calibrating" style="display: none;">
+        Calibrating...
+    </div>
 
-        //眠気検出用の変数
-        var EarThreshold = 0.1; // 目を閉じているとみなす閾値
-        var CheckInterval = 5; // 眠気をチェックするインターバル[s]
-        let BlinkDatas = []; //瞬きデータを保持する { timestamp, duration } のオブジェクト配列
-        let BlinkStartTime = null; // 瞬き開始時刻
-        let BlinkDurations = [];   // 瞬きの継続時間リスト
-        let DurMean = 0.0;
-        let DurCri = 130.0;
-        let Long10 = 0.0;
-        let SleapnessC = 0.0;
-        let SleapnessD = 0.0;
-        let CheckSleapness = false;// 眠気をチェックするかのフラグ               
+    <script src="/resources/SnoozzMainScript.js"></script>
 
-        // EAR計算用の目のランドマークインデックス
-        const LEFT_EYE = [362, 385, 387, 263, 373, 380];
-        const RIGHT_EYE = [33, 160, 158, 133, 153, 144];
-
-        // FPS計算用の変数
-        let FrameCount = 0;
-        let LastTimestamp = performance.now();
-
-        // 初期設定の読み込み
-        document.addEventListener("DOMContentLoaded", () => {
-            const savedDurCri = localStorage.getItem("DurCri");
-            const defaultDurCri = savedDurCri ? parseFloat(savedDurCri) : 100; // 保存された値、またはデフォルト値
-            document.getElementById("durCriSlider").value = defaultDurCri;
-            document.getElementById("durCriValue").value = defaultDurCri;
-            DurCri = defaultDurCri;
-            console.log(`Loaded DurCri: ${DurCri}`);
-
-            const savedEarThr = localStorage.getItem("EAR_THRESHOLD");
-            const defaultEarThr = savedEarThr ? parseFloat(savedEarThr) : 0.1; // 保存された値、またはデフォルト値
-            document.getElementById("earThrSlider").value = defaultEarThr;
-            document.getElementById("earThrValue").value = defaultEarThr;
-            window['EarThreshold'] = defaultEarThr;
-            console.log(`Loaded EAR_THRESHOLD: ${EarThreshold}`);
-        });
-
-        // 汎用的なスライダーとテキストボックスの同期関数
-        function updateValue(elementId, value, variableName) {
-            const element = document.getElementById(elementId);
-            if (element) {
-                element.value = value; // 対象の要素を更新
-            }
-            window[variableName] = parseFloat(value); // グローバル変数を更新
-            saveToLocalStorage(variableName, window[variableName]); // 保存関数を呼び出し
-        }
-
-        // 汎用的なローカルストレージ保存関数
-        function saveToLocalStorage(key, value) {
-            localStorage.setItem(key, value);
-            console.log(`Saved ${key}: ${value}`);
-        }
-
-        // タブの切り替え処理
-        function openTab(tabId) {
-            // タブのコンテンツを非表示
-            const tabContents = document.querySelectorAll('.tab-content');
-            tabContents.forEach(content => content.style.display = 'none');
-
-            // 全てのボタンのアクティブクラスを削除
-            const tabButtons = document.querySelectorAll('.tab-button');
-            tabButtons.forEach(button => button.classList.remove('active'));
-
-            // 選択されたタブを表示
-            document.getElementById(tabId).style.display = 'flex';
-
-            // 選択されたボタンにアクティブクラスを追加
-            event.currentTarget.classList.add('active');
-        }
-
-        // グリッドを更新
-        function updateBlinkDataGrid() {
-            const grid = document.getElementById('blinkDataGrid');
-            grid.innerHTML = ''; // 既存のグリッド内容をクリア
-
-            // グリッドのヘッダーを作成
-            const headerRow = document.createElement('div');
-            headerRow.style.display = 'grid';
-            headerRow.style.gridTemplateColumns = '1fr 1fr';
-            headerRow.style.fontWeight = 'bold';
-            headerRow.style.backgroundColor = '#ddd';
-            headerRow.style.borderBottom = '2px solid #aaa';
-
-            const timeHeader = document.createElement('div');
-            timeHeader.textContent = 'Time';
-            timeHeader.style.padding = '5px';
-            timeHeader.style.textAlign = 'center';
-
-            const durationHeader = document.createElement('div');
-            durationHeader.textContent = 'Duration';
-            durationHeader.style.padding = '5px';
-            durationHeader.style.textAlign = 'center';
-
-            headerRow.appendChild(timeHeader);
-            headerRow.appendChild(durationHeader);
-            grid.appendChild(headerRow);
-
-            // 瞬目データを逆順で表示
-            BlinkDatas.slice().reverse().forEach((data) => {
-                const row = document.createElement('div');
-                row.style.display = 'grid';
-                row.style.gridTemplateColumns = '1fr 1fr';
-                row.style.borderBottom = '1px solid #ddd';
-
-                // タイムスタンプを日本時間でフォーマット
-                const time = new Intl.DateTimeFormat('ja-JP', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                }).format(data.timestamp);
-
-                const duration = `${Math.round(data.duration * 100) / 100} ms`;
-
-                const timeCell = document.createElement('div');
-                timeCell.textContent = time;
-                timeCell.style.padding = '5px';
-                timeCell.style.textAlign = 'center';
-
-                const durationCell = document.createElement('div');
-                durationCell.textContent = duration;
-                durationCell.style.padding = '5px';
-                durationCell.style.textAlign = 'center';
-
-                row.appendChild(timeCell);
-                row.appendChild(durationCell);
-                grid.appendChild(row);
-            });
-        }
-
-        // 瞬き時間を追跡
-        function trackBlink(avgEAR, timestamp) {
-            const FIVE_MINUTES = 5 * 60 * 1000; // 5分のミリ秒
-            const currentTime = Date.now(); // 現在の時刻
-
-            // 古いデータを削除（5分以上前のデータを除外）
-            BlinkDatas = BlinkDatas.filter(data => currentTime - data.timestamp <= FIVE_MINUTES);
-
-            if (BlinkDatas.length === 10 && CheckSleapness === false) {
-                CheckSleapness = true;
-            }
-
-            if (avgEAR <= EarThreshold) {
-                // 目が閉じ始めた場合
-                if (BlinkStartTime === null) {
-                    BlinkStartTime = timestamp; // 瞬き開始時間を記録
-                }
-            }
-            else {
-                // 目が開いた場合
-                if (BlinkStartTime !== null) {
-                    const blinkDuration = timestamp - BlinkStartTime; // 瞬きの継続時間を計算
-                    BlinkDatas.push({ timestamp: currentTime, duration: blinkDuration }); // データを配列に追加
-
-                    console.log(`Blink Duration: ${blinkDuration} ms`);
-                    blinktimeDisplay.textContent = `BlinkTime: ${Math.round(blinkDuration * 100) / 100} ms`;
-                    BlinkStartTime = null; // 瞬き状態をリセット
-
-                    // グリッドを更新
-                    updateBlinkDataGrid();
-                }
-            }
-
-            DurMean = calculateDurMean(BlinkDatas);
-            Long10 = calculateLong10(BlinkDatas);
-            if (CheckSleapness === true) {
-                SleapnessC = calculateSleapnessC(Long10);
-                SleapnessD = calculateSleapnessD(DurMean);
-            }
-        }
-
-        // EARを計算
-        function calculateEAR(landmarks, eyeIndices) {
-            const p1 = landmarks[eyeIndices[1]];
-            const p2 = landmarks[eyeIndices[5]];
-            const p3 = landmarks[eyeIndices[2]];
-            const p4 = landmarks[eyeIndices[4]];
-            const p0 = landmarks[eyeIndices[0]];
-            const p3_ = landmarks[eyeIndices[3]];
-
-            // 縦方向の距離
-            const vertical1 = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
-            const vertical2 = Math.sqrt((p4.x - p3.x) ** 2 + (p4.y - p3.y) ** 2);
-            // 横方向の距離
-            const horizontal = Math.sqrt((p0.x - p3_.x) ** 2 + (p0.y - p3_.y) ** 2);
-
-            // EAR計算
-            return (vertical1 + vertical2) / (2.0 * horizontal);
-        }
-
-        // DurMeanを計算
-        function calculateDurMean(blinkDatas) {
-            let retDurMean = 0.0
-            if (blinkDatas.length > 0) {
-                const totalDuration = blinkDatas.reduce((sum, data) => sum + data.duration, 0);
-                retDurMean = totalDuration / blinkDatas.length;
-                durmeanDisplay.textContent = `DurMean: ${Math.round(DurMean * 100) / 100} ms`;
-            }
-            return retDurMean;
-        }
-
-        // Long10を計算
-        function calculateLong10(blinkDatas) {
-            const Nlong = blinkDatas.filter(data => data.duration > DurCri * 1.1).length;
-            const NAnother = blinkDatas.length - Nlong;
-            const retLong10 = (Nlong / (Nlong + NAnother)) * 100;
-            long10Display.textContent = `Long10: ${Math.round(retLong10 * 100) / 100}`;
-
-            return retLong10;
-        }
-
-        // SleapnessCを計算
-        function calculateSleapnessC(long10) {
-            const retSlpC = 1.238 + 0.046 * long10
-            if (retSlpC === 0) {
-                slpcDisplay.textContent = `SleapnessC: 0`;
-            } else {
-                slpcDisplay.textContent = `SleapnessC: ${Math.round(retSlpC * 100) / 100}`;
-            }
-            return retSlpC;
-        }
-
-        // SleapnessDを計算
-        function calculateSleapnessD(durMean) {
-            const retSlpD = -4.378 + 0.029 * durMean
-            if (retSlpD === 0) {
-                slpdDisplay.textContent = `SleapnessD: 0`;
-            } else {
-                slpdDisplay.textContent = `SleapnessD: ${Math.round(retSlpD * 100) / 100}`;
-            }
-            return retSlpD;
-        }
-
-        // FPSを計算
-        function calclateFPS() {
-            FrameCount++;
-            const now = performance.now();
-            const elapsed = now - LastTimestamp;
-            if (elapsed >= 1000) {
-                const fps = Math.round((FrameCount / elapsed) * 100000) / 100;
-                fpsDisplay.textContent = `FPS: ${fps}`;
-                FrameCount = 0;
-                LastTimestamp = now;
-            }
-        }
-
-        // Mediapipe FaceMesh設定
-        const faceMesh = new FaceMesh({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-        });
-
-        // Mediapipe FaceMesh設定
-        faceMesh.setOptions({
-            maxNumFaces: 1,
-            refineLandmarks: true,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5,
-        });
-
-        // MediaPipeの検出完了イベント
-        faceMesh.onResults((results) => {
-            const timestamp = performance.now(); // 現在の時刻を取得
-            canvasElement.width = results.image.width;
-            canvasElement.height = results.image.height;
-
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
-            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-                const landmarks = results.multiFaceLandmarks[0];
-
-                // 左目と右目のEARを計算
-                const leftEAR = calculateEAR(landmarks, LEFT_EYE);
-                const rightEAR = calculateEAR(landmarks, RIGHT_EYE);
-                const avgEAR = (leftEAR + rightEAR) / 2;
-
-                earDisplay.textContent = `EAR: ${Math.round(avgEAR * 100) / 100}`;
-
-                // 瞬き時間を追跡
-                trackBlink(avgEAR, timestamp);
-
-                // メッシュを描画
-                drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 1 });
-                drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: '#FF3030', lineWidth: 1 });
-                drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: '#30FF30', lineWidth: 1 });
-                drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, { color: '#E0E0E0', lineWidth: 1 });
-
-                // EARに基づいてインジケータの状態を更新
-                if (avgEAR > EarThreshold) {
-                    eyeStateElement.textContent = "😳";
-                    eyeStateElement.className = "indicator open";
-                } else {
-                    eyeStateElement.textContent = "😌";
-                    eyeStateElement.className = "indicator closed";
-                }
-            } else {
-                eyeStateElement.textContent = "🫥";
-                eyeStateElement.className = "indicator nofacedetected";
-            }
-
-            canvasCtx.restore();
-            calclateFPS();
-        });
-
-        // 使用可能なカメラデバイスを取得
-        async function getCameras() {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            // カメラデバイス (videoinput) を抽出
-            const videoDevices = devices.filter(device => device.kind === 'videoinput');
-            return videoDevices;
-        }
-
-        // 特定のカメラを選択して起動
-        async function startCamera(deviceId) {
-            const constraints = {
-                video: {
-                    deviceId: deviceId ? { exact: deviceId } : undefined, // カメラを指定 (デフォルトは自動選択)
-                    width: 640, // 解像度を指定
-                    height: 480,
-                    frameRate: { ideal: 60, max: 60 } // FPS を指定
-                }
-            };
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-                // 映像を <video> 要素に設定
-                const videoElement = document.querySelector('video');
-                videoElement.srcObject = stream;
-                videoElement.play();
-
-                const camera = new Camera(videoElement, {
-                    onFrame: async () => {
-                        await faceMesh.send({ image: videoElement }); // FaceMesh にフレームを送信
-                    },
-                    width: 640,
-                    height: 480,
-                });
-                camera.start(); // カメラの処理を開始
-
-            } catch (error) {
-                console.error('Error accessing the camera:', error);
-            }
-        }
-
-        // init
-        async function init() {
-            const cameras = await getCameras();
-            console.log('Available Cameras:', cameras);
-
-            if (cameras.length > 0) {
-                // 最初のカメラを使用
-                await startCamera(cameras[0].deviceId);
-            } else {
-                console.error('No cameras found.');
-            }
-
-            // 最初のタブを表示
-            document.getElementById('eyeStateTab').style.display = 'flex';
-
-            // 1分おきに SleapnessD をチェックするタイマーを設定
-            setInterval(() => {
-                if (SleapnessC > 3 || SleapnessD > 3) {
-                    console.warn("警告");
-                    document.getElementById('warningMessage').style.display = 'flex';
-                } else {
-                    console.log("正常");
-                    document.getElementById('warningMessage').style.display = 'none';
-                }
-            }, CheckInterval * 1000);
-        }
-
-        init();
-
-        /*
-        処理A：
-            基準瞬目持続時間の計測
-            DurCri[ms]＝（5分間にした瞬目持続時間の合計[ms]/瞬目回数[回]）/300000[ms]
-
-        処理B：B～Dは直近5分間の瞬目を対象とする→5分たった瞬目データは削除する
-            DurMean[ms]=（5分間にした瞬目持続時間の合計[ms]/瞬目回数[回]）
-            Long10=Nlong/(Nlong+NAnother)
-            Nlong = DurCri*1.1以上の個数
-            NAnother = 瞬目回数 - Nlong
-        処理C：
-            SleapnessC=1.238+0.046*Long10
-        処理D：
-            SleapnessD=-4.378+0.029*DurMean
-
-        処理E：1分おきに判定
-            SleapnessC>3||SleapnessD>3
-            →警告
-            SleapnessC=<3&&SleapnessD=<3
-            →Bに戻る
-        */
-    </script>
 </body>
 
 </html>
