@@ -3,8 +3,8 @@ from flask import Flask, render_template
 app = Flask(__name__)
 
 # SSL証明書と秘密鍵のファイルパスを指定します
-ssl_certfile = 'ssl\cert.pem'  # 証明書のパス
-ssl_keyfile = 'ssl\privkey.pem'  # 秘密鍵のパス
+ssl_certfile = 'ssl/certfile.crt'  # 証明書のパス
+ssl_keyfile = 'ssl/keyfile.key'  # 秘密鍵のパス
 
 @app.route('/')
 def index():
