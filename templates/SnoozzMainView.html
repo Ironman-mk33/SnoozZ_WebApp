@@ -21,6 +21,8 @@
         }
 
         .camera-container {
+            display: flex;
+            align-content: stretch;
             position: relative;
             border: 5px solid #f0f0f0;
             border-radius: 15px;
@@ -28,11 +30,12 @@
         }
 
         canvas {
-            display: block;
+            display: none;
             width: 100%;
         }
 
         .fps-display {
+            display: none;
             position: absolute;
             top: 5px;
             left: 10px;
@@ -45,6 +48,7 @@
         }
 
         .ear-display {
+            display: none;
             position: absolute;
             top: 30px;
             left: 10px;
@@ -57,6 +61,7 @@
         }
 
         .blinktime-display {
+            display: none;
             position: absolute;
             top: 55px;
             left: 10px;
@@ -69,6 +74,7 @@
         }
 
         .durmean-display {
+            display: none;
             position: absolute;
             top: 80px;
             left: 10px;
@@ -81,6 +87,7 @@
         }
 
         .long10-display {
+            display: none;
             position: absolute;
             top: 105px;
             left: 10px;
@@ -93,6 +100,7 @@
         }
 
         .slpc-display {
+            display: none;
             position: absolute;
             top: 130px;
             left: 10px;
@@ -105,6 +113,7 @@
         }
 
         .slpd-display {
+            display: none;
             position: absolute;
             top: 155px;
             left: 10px;
@@ -123,27 +132,49 @@
         }
 
         .indicator {
-            display: inline-block;
-            width: 100%;
-            height: 80px;
-            line-height: 80px;
-            border-radius: 10px;
-            font-size: 70px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100vw;
+            height: 100vh;
+            border-radius: 0;
+            font-size: 80vw;
             font-weight: bold;
             color: white;
             text-align: center;
         }
 
-        .open {
+        .indicator[data-state="open"]::before {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100vw;
+            height: 100vh;
             background-color: rgb(159, 225, 255);
+            content: "😳";
+            text-align: center;
         }
 
-        .closed {
+        .indicator[data-state="close"]::before {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100vw;
+            height: 100vh;
             background-color: rgb(255, 201, 201);
+            content: "😌";
+            text-align: center;
         }
 
-        .nofacedetected {
-            background-color: gray;
+        .indicator[data-state="nofacedetected"]::before {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgb(129, 129, 129);
+            content: "🫥";
+            text-align: center;
         }
 
         video {
@@ -255,6 +286,7 @@
 <body>
     <div class="camera-container">
         <canvas id="canvas"></canvas>
+        <div id="eyeState" class="indicator"></div>
         <video id="video" playsinline></video>
         <div id="fpsDisplay" class="fps-display">FPS: 0</div>
         <div id="earDisplay" class="ear-display">EAR: 0</div>
@@ -263,18 +295,22 @@
         <div id="long10Display" class="long10-display">Long10: 0</div>
         <div id="slpcDisplay" class="slpc-display">SleapnessC: Measuring...</div>
         <div id="slpdDisplay" class="slpd-display">SleapnessD: Measuring...</div>
+        <div id="warningMessage" class="warning" style="display: none;">
+            Drowsiness detected
+        </div>
+
     </div>
     <div class="indicator-container">
         <!-- タブヘッダー -->
         <div class="tab-header">
-            <button class="tab-button active" onclick="openTab('eyeStateTab')">Eye State</button>
+            <!-- <button class="tab-button active" onclick="openTab('eyeStateTab')">Eye State</button> -->
             <button class="tab-button" onclick="openTab('blinkDataTab')">Blink Data</button>
             <button class="tab-button" onclick="openTab('settingTab')">Setting</button>
         </div>
         <!-- タブコンテンツ -->
-        <div class="tab-content" id="eyeStateTab">
-            <div id="eyeState" class="indicator">Loading...</div>
-        </div>
+        <!-- <div class="tab-content" id="eyeStateTab">
+                <div id="eyeState" class="indicator">Loading...</div>
+            </div> -->
         <div class="tab-content" id="blinkDataTab" style="display:none;">
             <div id="blinkDataGrid"
                 style="display: grid; grid-template-columns: 1fr; gap: 5px; margin-top: 10px; width: 100%; border: 1px solid #ccc; border-radius: 5px; overflow: hidden;">
@@ -327,19 +363,22 @@
                         style="padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;"
                         onclick="startCalibration()">Calibration</button>
                 </div>
+
+
+                <!-- Calibration ボタン -->
+                <div style="margin-top: 20px; width: 100%; text-align: center;">
+                    <button id="exportCSVButton" onclick="exportToCSV()">Export to CSV</button>
+                </div>
+
             </div>
         </div>
-
-
-    </div>
-
-    <div id="warningMessage" class="warning" style="display: none;">
-        Drowsiness detected
     </div>
 
     <div id="calibratingMessage" class="Calibrating" style="display: none;">
         Calibrating...
     </div>
+
+
 
     <script src="/resources/SnoozzMainScript.js"></script>
 

@@ -366,15 +366,12 @@ faceMesh.onResults((results) => {
 
         // EARに基づいてインジケータの状態を更新
         if (avgNromEAR > EarThreshold) {
-            eyeStateElement.textContent = "😳";
-            eyeStateElement.className = "indicator open";
+            eyeStateElement.setAttribute("data-state", "open");
         } else {
-            eyeStateElement.textContent = "😌";
-            eyeStateElement.className = "indicator closed";
+            eyeStateElement.setAttribute("data-state", "close");
         }
     } else {
-        eyeStateElement.textContent = "🫥";
-        eyeStateElement.className = "indicator nofacedetected";
+        eyeStateElement.setAttribute("data-state", "nofacedetected");
     }
 
     canvasCtx.restore();
@@ -421,6 +418,33 @@ async function startCamera(deviceId) {
     }
 }
 
+// CSVデータ書き出し
+function exportToCSV() {
+    const header = ['Timestamp', 'BlinkDuration(ms)', 'SleapnessC', 'SleapnessD']; // ヘッダーを定義
+    const rows = BlinkDatas.map((data, index) => {
+        const sleapnessCValue = index < BlinkDatas.length ? calculateSleapnessC(calculateLong10(BlinkDatas.slice(0, index + 1))) : '';
+        const sleapnessDValue = index < BlinkDatas.length ? calculateSleapnessD(calculateDurMean(BlinkDatas.slice(0, index + 1))) : '';
+
+        return [
+            new Date(data.timestamp).toISOString(), // タイムスタンプをISOフォーマットで
+            data.duration.toFixed(2), // 瞬きの継続時間
+            sleapnessCValue.toFixed(2), // SleapnessC
+            sleapnessDValue.toFixed(2) // SleapnessD
+        ].join(',');
+    });
+
+    // ヘッダーとデータを結合してCSVフォーマット
+    const csvContent = [header.join(','), ...rows].join('\n');
+
+    // ダウンロードリンクを生成
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `blink_data_${new Date().toISOString()}.csv`; // ファイル名を設定
+    link.click(); // 自動的にダウンロード開始
+}
+
 // init
 async function init() {
     isCalibrating = true;
@@ -434,9 +458,6 @@ async function init() {
     } else {
         console.error('No cameras found.');
     }
-
-    // 最初のタブを表示
-    document.getElementById('eyeStateTab').style.display = 'flex';
 
     // 1分おきに SleapnessD をチェックするタイマーを設定
     setInterval(() => {
@@ -454,25 +475,3 @@ async function init() {
 }
 
 init();
-
-/*
-処理A：
-    基準瞬目持続時間の計測
-    DurCri[ms]＝（5分間にした瞬目持続時間の合計[ms]/瞬目回数[回]）/300000[ms]
-
-処理B：B～Dは直近5分間の瞬目を対象とする→5分たった瞬目データは削除する
-    DurMean[ms]=（5分間にした瞬目持続時間の合計[ms]/瞬目回数[回]）
-    Long10=Nlong/(Nlong+NAnother)
-    Nlong = DurCri*1.1以上の個数
-    NAnother = 瞬目回数 - Nlong
-処理C：
-    SleapnessC=1.238+0.046*Long10
-処理D：
-    SleapnessD=-4.378+0.029*DurMean
-
-処理E：1分おきに判定
-    SleapnessC>3||SleapnessD>3
-    →警告
-    SleapnessC=<3&&SleapnessD=<3
-    →Bに戻る
-*/

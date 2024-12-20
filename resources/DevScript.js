@@ -366,15 +366,12 @@ faceMesh.onResults((results) => {
 
         // EARに基づいてインジケータの状態を更新
         if (avgNromEAR > EarThreshold) {
-            eyeStateElement.textContent = "😳";
-            eyeStateElement.className = "indicator open";
+            eyeStateElement.setAttribute("data-state", "open");
         } else {
-            eyeStateElement.textContent = "😌";
-            eyeStateElement.className = "indicator closed";
+            eyeStateElement.setAttribute("data-state", "close");
         }
     } else {
-        eyeStateElement.textContent = "🫥";
-        eyeStateElement.className = "indicator nofacedetected";
+        eyeStateElement.setAttribute("data-state", "nofacedetected");
     }
 
     canvasCtx.restore();

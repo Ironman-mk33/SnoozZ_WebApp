@@ -22,7 +22,7 @@
 
         .camera-container {
             position: relative;
-            border: 5px solid #7bffd3;
+            border: 5px solid #f0f0f0;
             border-radius: 15px;
             overflow: hidden;
         }
@@ -134,17 +134,27 @@
             text-align: center;
         }
 
-        .open {
+        .indicator[data-state="open"]::before {
+            display: inline-block;
+            width: 100%;
             background-color: rgb(159, 225, 255);
+            content: "😳";
         }
 
-        .closed {
+        .indicator[data-state="close"]::before {
+            display: inline-block;
+            width: 100%;
             background-color: rgb(255, 201, 201);
+            content: "😌";
         }
 
-        .nofacedetected {
-            background-color: gray;
+        .indicator[data-state="nofacedetected"]::before {
+            display: inline-block;
+            width: 100%;
+            background-color: rgb(129, 129, 129);
+            content: "🫥";
         }
+
 
         video {
             display: none;
@@ -273,7 +283,7 @@
         </div>
         <!-- タブコンテンツ -->
         <div class="tab-content" id="eyeStateTab">
-            <div id="eyeState" class="indicator">Loading...</div>
+            <div id="eyeState" class="indicator"></div>
         </div>
         <div class="tab-content" id="blinkDataTab" style="display:none;">
             <div id="blinkDataGrid"
@@ -341,7 +351,7 @@
         Calibrating...
     </div>
 
-    <script src="/resources/SnoozzMainScript.js"></script>
+    <script src="/resources/DevScript.js"></script>
 
 </body>
 
