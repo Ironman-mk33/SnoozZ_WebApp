@@ -11,6 +11,8 @@ let BlinkDatas = []; //瞬きデータを保持する { timestamp, duration } �
 let EarLeftDatas = []; //EARの配列
 let EarRightDatas = []; //EARの配列
 let BlinkStartTime = null; // 瞬き開始時刻
+let CloseElapsedTime = null; // 目を閉じている時間
+var SleepDetectThresholdTime = null; // 眠気検出の閾値時間
 let BlinkDurations = [];   // 瞬きの継続時間リスト
 let DurMean = 0.0;
 var DurCri = 130.0;
@@ -61,6 +63,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("earShiftValue").value = defaultEarShift;
     window['EarShiftFactor'] = defaultEarShift;
     console.log(`Loaded EarShiftFactor: ${EarShiftFactor}`);
+
+    const savedSleepDetectThresholdTime = localStorage.getItem("SleepDetectThresholdTime");
+    const defaultESleepDetectThresholdTime = savedSleepDetectThresholdTime ? parseFloat(savedSleepDetectThresholdTime) : 5000; // 保存された値、またはデフォルト値
+    document.getElementById("SleepDetectThresholdTimeSlider").value = defaultESleepDetectThresholdTime;
+    document.getElementById("SleepDetectThresholdTimeValue").value = defaultESleepDetectThresholdTime;
+    window['SleepDetectThresholdTime'] = defaultESleepDetectThresholdTime;
+    console.log(`Loaded SleepDetectThresholdTime: ${SleepDetectThresholdTime}`);
 });
 
 // 汎用的なスライダーとテキストボックスの同期関数
@@ -176,13 +185,26 @@ function trackBlink(avgEAR, timestamp) {
         if (BlinkStartTime === null) {
             BlinkStartTime = timestamp; // 瞬き開始時間を記録
         }
+        CloseElapsedTime = timestamp - BlinkStartTime; // 目を閉じている時間を計算
+        blinktimeDisplay.textContent = `BlinkTime: ${Math.round(CloseElapsedTime * 100) / 100} ms`;
+
+        if (isCalibrating === false) {
+            if (CloseElapsedTime > SleepDetectThresholdTime) {
+                document.getElementById('warningMessage').style.display = 'flex';
+            } else {
+                document.getElementById('warningMessage').style.display = 'none';
+            }
+        }
+        else {
+            document.getElementById('warningMessage').style.display = 'none';
+        }
     }
     else {
         // 目が開いた場合
         if (BlinkStartTime !== null) {
-            const blinkDuration = timestamp - BlinkStartTime; // 瞬きの継続時間を計算
-            BlinkDatas.push({ timestamp: currentTime, duration: blinkDuration }); // データを配列に追加
-            blinktimeDisplay.textContent = `BlinkTime: ${Math.round(blinkDuration * 100) / 100} ms`;
+            CloseElapsedTime = timestamp - BlinkStartTime; // 瞬きの継続時間を計算
+            BlinkDatas.push({ timestamp: currentTime, duration: CloseElapsedTime }); // データを配列に追加
+            blinktimeDisplay.textContent = `BlinkTime: ${Math.round(CloseElapsedTime * 100) / 100} ms`;
             BlinkStartTime = null; // 瞬き状態をリセット
 
             // グリッドを更新
@@ -418,6 +440,37 @@ async function startCamera(deviceId) {
     }
 }
 
+// CSVデータ書き出し
+function exportToCSV() {
+    const header = ['Timestamp', 'BlinkDuration(ms)', 'Long10', 'DurMean', 'SleapnessC', 'SleapnessD']; // ヘッダーを定義
+    const rows = BlinkDatas.map((data, index) => {
+        const long10Value = index < BlinkDatas.length ? calculateLong10(BlinkDatas.slice(0, index + 1)) : '';
+        const durMeanValue = index < BlinkDatas.length ? calculateDurMean(BlinkDatas.slice(0, index + 1)) : '';
+        const sleapnessCValue = index < BlinkDatas.length ? calculateSleapnessC(calculateLong10(BlinkDatas.slice(0, index + 1))) : '';
+        const sleapnessDValue = index < BlinkDatas.length ? calculateSleapnessD(calculateDurMean(BlinkDatas.slice(0, index + 1))) : '';
+
+        return [
+            data.timestamp, // タイムスタンプをISOフォーマットで
+            data.duration.toFixed(2), // 瞬きの継続時間
+            long10Value.toFixed(2), // long10Value
+            durMeanValue.toFixed(2), // durMeanValue
+            sleapnessCValue.toFixed(2), // SleapnessC
+            sleapnessDValue.toFixed(2) // SleapnessD
+        ].join(',');
+    });
+
+    // ヘッダーとデータを結合してCSVフォーマット
+    const csvContent = [header.join(','), ...rows].join('\n');
+
+    // ダウンロードリンクを生成
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `blink_data_${new Date().toISOString()}.csv`; // ファイル名を設定
+    link.click(); // 自動的にダウンロード開始
+}
+
 // init
 async function init() {
     isCalibrating = true;
@@ -432,20 +485,17 @@ async function init() {
         console.error('No cameras found.');
     }
 
-    // 最初のタブを表示
-    document.getElementById('eyeStateTab').style.display = 'flex';
-
     // 1分おきに SleapnessD をチェックするタイマーを設定
     setInterval(() => {
         if (isCalibrating === false) {
             if (SleapnessC > 3 || SleapnessD > 3) {
-                document.getElementById('warningMessage').style.display = 'flex';
+                document.getElementById('cautionMessage').style.display = 'flex';
             } else {
-                document.getElementById('warningMessage').style.display = 'none';
+                document.getElementById('cautionMessage').style.display = 'none';
             }
         }
         else {
-            document.getElementById('warningMessage').style.display = 'none';
+            document.getElementById('cautionMessage').style.display = 'none';
         }
     }, CheckInterval * 1000);
 }
