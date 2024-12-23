@@ -3,6 +3,7 @@ const canvasElement = document.getElementById('canvas');
 const canvasCtx = canvasElement.getContext('2d');
 const fpsDisplay = document.getElementById('fpsDisplay');
 const eyeStateElement = document.getElementById('eyeState');
+const graphCtx = document.getElementById('earGraph').getContext('2d');
 
 //眠気検出用の変数
 var EarThreshold = 0.5; // 目を閉じているとみなす閾値
@@ -10,7 +11,11 @@ var CheckInterval = 5; // 眠気をチェックするインターバル[s]
 let BlinkDatas = []; //瞬きデータを保持する { timestamp, duration } のオブジェクト配列
 let EarLeftDatas = []; //EARの配列
 let EarRightDatas = []; //EARの配列
+let EarLeftRawDatas = []; //EARの配列
+let EarRightRawDatas = []; //EARの配列
 let BlinkStartTime = null; // 瞬き開始時刻
+let CloseElapsedTime = null; // 目を閉じている時間
+var SleepDetectThresholdTime = null; // 眠気検出の閾値時間
 let BlinkDurations = [];   // 瞬きの継続時間リスト
 let DurMean = 0.0;
 var DurCri = 130.0;
@@ -61,6 +66,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("earShiftValue").value = defaultEarShift;
     window['EarShiftFactor'] = defaultEarShift;
     console.log(`Loaded EarShiftFactor: ${EarShiftFactor}`);
+
+    const savedSleepDetectThresholdTime = localStorage.getItem("SleepDetectThresholdTime");
+    const defaultESleepDetectThresholdTime = savedSleepDetectThresholdTime ? parseFloat(savedSleepDetectThresholdTime) : 5000; // 保存された値、またはデフォルト値
+    document.getElementById("SleepDetectThresholdTimeSlider").value = defaultESleepDetectThresholdTime;
+    document.getElementById("SleepDetectThresholdTimeValue").value = defaultESleepDetectThresholdTime;
+    window['SleepDetectThresholdTime'] = defaultESleepDetectThresholdTime;
+    console.log(`Loaded SleepDetectThresholdTime: ${SleepDetectThresholdTime}`);
 });
 
 // 汎用的なスライダーとテキストボックスの同期関数
@@ -176,13 +188,26 @@ function trackBlink(avgEAR, timestamp) {
         if (BlinkStartTime === null) {
             BlinkStartTime = timestamp; // 瞬き開始時間を記録
         }
+        CloseElapsedTime = timestamp - BlinkStartTime; // 目を閉じている時間を計算
+        blinktimeDisplay.textContent = `BlinkTime: ${Math.round(CloseElapsedTime * 100) / 100} ms`;
+
+        if (isCalibrating === false) {
+            if (CloseElapsedTime > SleepDetectThresholdTime) {
+                document.getElementById('warningMessage').style.display = 'flex';
+            } else {
+                document.getElementById('warningMessage').style.display = 'none';
+            }
+        }
+        else {
+            document.getElementById('warningMessage').style.display = 'none';
+        }
     }
     else {
         // 目が開いた場合
         if (BlinkStartTime !== null) {
-            const blinkDuration = timestamp - BlinkStartTime; // 瞬きの継続時間を計算
-            BlinkDatas.push({ timestamp: currentTime, duration: blinkDuration }); // データを配列に追加
-            blinktimeDisplay.textContent = `BlinkTime: ${Math.round(blinkDuration * 100) / 100} ms`;
+            CloseElapsedTime = timestamp - BlinkStartTime; // 瞬きの継続時間を計算
+            BlinkDatas.push({ timestamp: currentTime, duration: CloseElapsedTime }); // データを配列に追加
+            blinktimeDisplay.textContent = `BlinkTime: ${Math.round(CloseElapsedTime * 100) / 100} ms`;
             BlinkStartTime = null; // 瞬き状態をリセット
 
             // グリッドを更新
@@ -216,12 +241,15 @@ function trackBlink(avgEAR, timestamp) {
             updateValue('durCriValue', DurCri, 'DurCri');
 
             // 最大値を取得
-            const maxEar = (Math.max(...EarLeftDatas) + Math.max(...EarRightDatas)) / 2;
+            const maxEar = (Math.max(...EarLeftRawDatas.map(data => data.ear)) + Math.max(...EarRightRawDatas.map(data => data.ear))) / 2;
+
             // 最小値を取得
-            const minEar = (Math.min(...EarLeftDatas) + Math.min(...EarRightDatas)) / 2;
+            const minEar = (Math.min(...EarLeftRawDatas.map(data => data.ear)) + Math.min(...EarRightRawDatas.map(data => data.ear))) / 2;
 
             EarLeftDatas.length = 0;
             EarRightDatas.length = 0;
+            EarLeftRawDatas.length = 0;
+            EarRightRawDatas.length = 0;
 
             EarScaleFactor = 1 / (maxEar - minEar);
             updateValue('earScaleSlider', EarScaleFactor, 'EarScaleFactor');
@@ -319,6 +347,87 @@ const faceMesh = new FaceMesh({
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
 });
 
+// Chart.js 設定
+const chart = new Chart(graphCtx, {
+    type: 'line',
+    data: {
+        labels: [], // X軸ラベル
+        datasets: [{
+            label: 'EAR Left Raw',
+            data: [], // Y軸データ
+            borderColor: 'rgb(199, 255, 255)',
+            borderWidth: 1,
+            pointRadius: 0, // プロットポイントのサイズ（小さく設定）
+            pointHoverRadius: 4, // ホバー時のポイントサイズ
+            fill: false,
+        }, {
+            label: 'EAR Right Raw',
+            data: [], // Y軸データ
+            borderColor: 'rgb(255, 202, 158)',
+            borderWidth: 1,
+            pointRadius: 0, // プロットポイントのサイズ（小さく設定）
+            pointHoverRadius: 4, // ホバー時のポイントサイズ
+            fill: false,
+        }, {
+            label: 'EAR Left',
+            data: [], // Y軸データ
+            borderColor: 'rgb(51, 82, 255)',
+            borderWidth: 1,
+            pointRadius: 0, // プロットポイントのサイズ（小さく設定）
+            pointHoverRadius: 4, // ホバー時のポイントサイズ
+            fill: false,
+        }, {
+            label: 'EAR Right',
+            data: [], // Y軸データ
+            borderColor: 'rgb(255, 113, 47)',
+            borderWidth: 1,
+            pointRadius: 0, // プロットポイントのサイズ（小さく設定）
+            pointHoverRadius: 4, // ホバー時のポイントサイズ
+            fill: false,
+        }]
+    },
+    options: {
+        responsive: true,
+        animation: false, // アニメーションを無効化
+        maintainAspectRatio: false, // 縦横比を固定しない
+        scales: {
+            x: {
+                title: {
+                    display: true,
+                    text: 'Time (ms)'
+                }
+            },
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'EAR Value'
+                }
+            }
+        }
+    }
+});
+
+// 最新100データを抽出してグラフとHTMLに反映する関数
+function updateChartAndDisplay() {
+    // 最新100データを取得
+    const latestEarLeftRawDatas = EarLeftRawDatas.slice(-1000);
+    const latestEarRightRawDatas = EarRightRawDatas.slice(-1000);
+    const latestEarLeftDatas = EarLeftDatas.slice(-1000);
+    const latestEarRightDatas = EarRightDatas.slice(-1000);
+
+    // グラフのデータを更新
+    chart.data.labels = latestEarLeftDatas.map(data => Math.round(data.timestamp)); // X軸にインデックス
+    chart.data.labels.min = Math.round(latestEarLeftDatas[0].timestamp);
+    chart.data.datasets[0].data = latestEarLeftRawDatas.map(data => data.ear);
+    chart.data.datasets[1].data = latestEarRightRawDatas.map(data => data.ear);
+    chart.data.datasets[2].data = latestEarLeftDatas.map(data => data.ear);
+    chart.data.datasets[3].data = latestEarRightDatas.map(data => data.ear);
+
+    // グラフを更新
+    chart.update();
+}
+
 // Mediapipe FaceMesh設定
 faceMesh.setOptions({
     maxNumFaces: 1,
@@ -344,16 +453,22 @@ faceMesh.onResults((results) => {
         const leftEAR = calculateEAR(landmarks, LEFT_EYE);
         const rightEAR = calculateEAR(landmarks, RIGHT_EYE);
         const avgEAR = (leftEAR + rightEAR) / 2;
-        const avgNromEAR = avgEAR * EarScaleFactor + EarShiftFactor;
+
+        const leftNromEAR = leftEAR * EarScaleFactor + EarShiftFactor;
+        const rightNromEAR = rightEAR * EarScaleFactor + EarShiftFactor;
+
+        const avgNromEAR = (leftNromEAR + rightNromEAR) / 2;
 
         console.log(`avgNromEAR: ${Math.round(avgNromEAR * 100) / 100}`);
 
         earDisplay.textContent = `EAR: ${Math.round(avgNromEAR * 100) / 100} (${Math.round(avgEAR * 100) / 100})`;
 
-        if (isCalibrating === true) {
-            EarLeftDatas.push(leftEAR); // データを配列に追加
-            EarRightDatas.push(leftEAR); // データを配列に追加
-        }
+
+        EarLeftRawDatas.push({ timestamp: timestamp, ear: leftEAR }); // データを配列に追加
+        EarRightRawDatas.push({ timestamp: timestamp, ear: rightEAR }); // データを配列に追加
+
+        EarLeftDatas.push({ timestamp: timestamp, ear: leftNromEAR }); // データを配列に追加
+        EarRightDatas.push({ timestamp: timestamp, ear: rightNromEAR }); // データを配列に追加
 
         // 瞬き時間を追跡
         trackBlink(avgNromEAR, timestamp);
@@ -419,15 +534,25 @@ async function startCamera(deviceId) {
 }
 
 // CSVデータ書き出し
-function exportToCSV() {
-    const header = ['Timestamp', 'BlinkDuration(ms)', 'SleapnessC', 'SleapnessD']; // ヘッダーを定義
+function exportCSVs() {
+    exportBlinkDatasToCSV();
+    exportEARDatasToCSV();
+}
+
+// CSVデータ書き出し
+function exportBlinkDatasToCSV() {
+    const header = ['Timestamp', 'BlinkDuration(ms)', 'Long10', 'DurMean', 'SleapnessC', 'SleapnessD']; // ヘッダーを定義
     const rows = BlinkDatas.map((data, index) => {
+        const long10Value = index < BlinkDatas.length ? calculateLong10(BlinkDatas.slice(0, index + 1)) : '';
+        const durMeanValue = index < BlinkDatas.length ? calculateDurMean(BlinkDatas.slice(0, index + 1)) : '';
         const sleapnessCValue = index < BlinkDatas.length ? calculateSleapnessC(calculateLong10(BlinkDatas.slice(0, index + 1))) : '';
         const sleapnessDValue = index < BlinkDatas.length ? calculateSleapnessD(calculateDurMean(BlinkDatas.slice(0, index + 1))) : '';
 
         return [
-            new Date(data.timestamp).toISOString(), // タイムスタンプをISOフォーマットで
+            data.timestamp, // タイムスタンプをISOフォーマットで
             data.duration.toFixed(2), // 瞬きの継続時間
+            long10Value.toFixed(2), // long10Value
+            durMeanValue.toFixed(2), // durMeanValue
             sleapnessCValue.toFixed(2), // SleapnessC
             sleapnessDValue.toFixed(2) // SleapnessD
         ].join(',');
@@ -442,6 +567,36 @@ function exportToCSV() {
     const link = document.createElement('a');
     link.href = url;
     link.download = `blink_data_${new Date().toISOString()}.csv`; // ファイル名を設定
+    link.click(); // 自動的にダウンロード開始
+}
+
+// CSVデータ書き出し
+function exportEARDatasToCSV() {
+    const header = ['Timestamp', 'RawLeftEAR', 'RawRightEAR', 'LeftEAR', 'RightEAR']; // ヘッダーを定義
+    const rows = EarLeftRawDatas.map((data, index) => {
+        const rawLeftEAR = index < EarLeftRawDatas.length ? EarLeftRawDatas[index].ear : '';
+        const rawRightEAR = index < EarLeftRawDatas.length ? EarRightRawDatas[index].ear : '';
+        const leftEAR = index < EarLeftRawDatas.length ? EarLeftDatas[index].ear : '';
+        const rightEAR = index < EarLeftRawDatas.length ? EarRightDatas[index].ear : '';
+
+        return [
+            data.timestamp,
+            rawLeftEAR.toFixed(2), // long10Value
+            rawRightEAR.toFixed(2), // durMeanValue
+            leftEAR.toFixed(2), // SleapnessC
+            rightEAR.toFixed(2) // SleapnessD
+        ].join(',');
+    });
+
+    // ヘッダーとデータを結合してCSVフォーマット
+    const csvContent = [header.join(','), ...rows].join('\n');
+
+    // ダウンロードリンクを生成
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ear_data_${new Date().toISOString()}.csv`; // ファイル名を設定
     link.click(); // 自動的にダウンロード開始
 }
 
@@ -463,15 +618,42 @@ async function init() {
     setInterval(() => {
         if (isCalibrating === false) {
             if (SleapnessC > 3 || SleapnessD > 3) {
-                document.getElementById('warningMessage').style.display = 'flex';
+                document.getElementById('cautionMessage').style.display = 'flex';
             } else {
-                document.getElementById('warningMessage').style.display = 'none';
+                document.getElementById('cautionMessage').style.display = 'none';
             }
         }
         else {
-            document.getElementById('warningMessage').style.display = 'none';
+            document.getElementById('cautionMessage').style.display = 'none';
         }
     }, CheckInterval * 1000);
+
+    // 定期的にグラフと配列表示を更新
+    setInterval(() => {
+        updateChartAndDisplay();
+    }, 100); // 0.5秒ごとに更新
 }
 
 init();
+
+/*
+処理A：
+    基準瞬目持続時間の計測
+    DurCri[ms]＝（5分間にした瞬目持続時間の合計[ms]/瞬目回数[回]）/300000[ms]
+
+処理B：B～Dは直近5分間の瞬目を対象とする→5分たった瞬目データは削除する
+    DurMean[ms]=（5分間にした瞬目持続時間の合計[ms]/瞬目回数[回]）
+    Long10=Nlong/(Nlong+NAnother)
+    Nlong = DurCri*1.1以上の個数
+    NAnother = 瞬目回数 - Nlong
+処理C：
+    SleapnessC=1.238+0.046*Long10
+処理D：
+    SleapnessD=-4.378+0.029*DurMean
+
+処理E：1分おきに判定
+    SleapnessC>3||SleapnessD>3
+    →警告
+    SleapnessC=<3&&SleapnessD=<3
+    →Bに戻る
+*/

@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             display: flex;
@@ -162,12 +163,12 @@
 
         /* 赤い背景で警告表示 */
         .warning {
-            position: fixed;
+            position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(255, 0, 0, 0.8);
+            background-color: rgba(255, 0, 0, 1.0);
             color: rgb(47, 0, 0);
             font-size: 60px;
             font-weight: bold;
@@ -180,9 +181,9 @@
             /* 縦書き */
         }
 
-        /* 赤い背景で警告表示 */
+        /* 黄色い背景で注意表示 */
         .caution {
-            position: fixed;
+            position: absolute;
             top: 0;
             left: 0;
             width: 100%;
@@ -202,7 +203,7 @@
 
         /* キャリブレーション */
         .Calibrating {
-            position: fixed;
+            position: absolute;
             top: 50%;
             left: 0;
             width: 100%;
@@ -279,6 +280,11 @@
             cursor: not-allowed;
             /* カーソルを禁止マークにする */
         }
+
+        #graph-container {
+            width: 100vw;
+            height: 300px;
+        }
     </style>
 </head>
 
@@ -293,6 +299,18 @@
         <div id="long10Display" class="long10-display">Long10: 0</div>
         <div id="slpcDisplay" class="slpc-display">SleapnessC: Measuring...</div>
         <div id="slpdDisplay" class="slpd-display">SleapnessD: Measuring...</div>
+
+        <div id="cautionMessage" class="caution" style="display: none;">
+            Drowsiness detected
+        </div>
+
+        <div id="warningMessage" class="warning" style="display: none;">
+            Sleep detected
+        </div>
+
+        <div id="calibratingMessage" class="Calibrating" style="display: none;">
+            Calibrating...
+        </div>
     </div>
     <div class="indicator-container">
         <!-- タブヘッダー -->
@@ -300,6 +318,7 @@
             <button class="tab-button active" onclick="openTab('eyeStateTab')">Eye State</button>
             <button class="tab-button" onclick="openTab('blinkDataTab')">Blink Data</button>
             <button class="tab-button" onclick="openTab('settingTab')">Setting</button>
+            <button class="tab-button" onclick="openTab('graphTab')">Graph</button>
         </div>
         <!-- タブコンテンツ -->
         <div class="tab-content" id="eyeStateTab">
@@ -374,27 +393,27 @@
                 <div style="margin-top: 20px; width: 100%; text-align: center;">
                     <button id="exportCSVButton"
                         style="padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;"
-                        onclick="exportToCSV()">Export to CSV</button>
+                        onclick="exportCSVs()">Export to CSV</button>
                 </div>
+            </div>
+        </div>
+        <div class="tab-content" id="graphTab" style="display: none;">
+            <!-- <div class="graph-container">
+                <canvas id="earGraph"></canvas>
+            </div> -->
+            <div id="graph-container">
+                <canvas id="earGraph" style="width: 100%; height: 100%;"></canvas>
             </div>
         </div>
 
 
     </div>
 
-    <div id="cautionMessage" class="caution" style="display: none;">
-        Drowsiness detected
-    </div>
 
-    <div id="warningMessage" class="warning" style="display: none;">
-        Sleep detected
-    </div>
 
-    <div id="calibratingMessage" class="Calibrating" style="display: none;">
-        Calibrating...
-    </div>
 
-    <script src="/resources/DevScript.js"></script>
+
+    <script src="/resources/SnoozzMainScript.js"></script>
 
 </body>
 
