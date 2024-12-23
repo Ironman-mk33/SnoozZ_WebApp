@@ -20,6 +20,6 @@ pip install -r requirements.txt
 
 EXE化するコマンド
 .\env\Scripts\activate
-pyinstaller -F --add-data "ssl:ssl" --add-data "templates:templates" --add-data "tools:tools"  --onefile app.py
+pyinstaller -F --add-data "ssl:ssl" --add-data "templates:templates" --add-data "tools:tools" --add-data "resources:resources" --onefile app.py
 
 作成者：西村久樹
