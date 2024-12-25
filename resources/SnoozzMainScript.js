@@ -13,6 +13,10 @@ let EarLeftDatas = []; //EARの配列
 let EarRightDatas = []; //EARの配列
 let EarLeftRawDatas = []; //EARの配列
 let EarRightRawDatas = []; //EARの配列
+
+//let wEarLeftRawDatas = []; //EARの配列
+//let wEarRightRawDatas = []; //EARの配列
+
 let BlinkStartTime = null; // 瞬き開始時刻
 let CloseElapsedTime = null; // 目を閉じている時間
 var SleepDetectThresholdTime = null; // 眠気検出の閾値時間
@@ -251,6 +255,9 @@ function trackBlink(avgEAR, timestamp) {
             EarLeftRawDatas.length = 0;
             EarRightRawDatas.length = 0;
 
+            //wEarLeftRawDatas.length = 0;
+            //wEarRightRawDatas.length = 0;
+
             EarScaleFactor = 1 / (maxEar - minEar);
             updateValue('earScaleSlider', EarScaleFactor, 'EarScaleFactor');
             updateValue('earScaleValue', EarScaleFactor, 'EarScaleFactor');
@@ -268,7 +275,7 @@ function trackBlink(avgEAR, timestamp) {
 }
 
 // EARを計算
-function calculateEAR(landmarks, eyeIndices) {
+function wcalculateEAR(landmarks, eyeIndices) {
     const p1 = landmarks[eyeIndices[1]];
     const p2 = landmarks[eyeIndices[5]];
     const p3 = landmarks[eyeIndices[2]];
@@ -281,6 +288,25 @@ function calculateEAR(landmarks, eyeIndices) {
     const vertical2 = Math.sqrt((p4.x - p3.x) ** 2 + (p4.y - p3.y) ** 2);
     // 横方向の距離
     const horizontal = Math.sqrt((p0.x - p3_.x) ** 2 + (p0.y - p3_.y) ** 2);
+
+    // EAR計算
+    return (vertical1 + vertical2) / (2.0 * horizontal);
+}
+
+// EARを計算
+function calculateEAR(landmarks, eyeIndices) {
+    const p1 = landmarks[eyeIndices[1]];
+    const p2 = landmarks[eyeIndices[5]];
+    const p3 = landmarks[eyeIndices[2]];
+    const p4 = landmarks[eyeIndices[4]];
+    const p0 = landmarks[eyeIndices[0]];
+    const p3_ = landmarks[eyeIndices[3]];
+
+    // 縦方向の距離
+    const vertical1 = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2 + (p2.z - p1.z) ** 2);
+    const vertical2 = Math.sqrt((p4.x - p3.x) ** 2 + (p4.y - p3.y) ** 2 + (p4.z - p3.z) ** 2);
+    // 横方向の距離
+    const horizontal = Math.sqrt((p0.x - p3_.x) ** 2 + (p0.y - p3_.y) ** 2 + (p0.z - p3_.z) ** 2);
 
     // EAR計算
     return (vertical1 + vertical2) / (2.0 * horizontal);
@@ -355,7 +381,7 @@ const chart = new Chart(graphCtx, {
         datasets: [{
             label: 'EAR Left Raw',
             data: [], // Y軸データ
-            borderColor: 'rgb(199, 255, 255)',
+            borderColor: 'rgb(255, 163, 113)',
             borderWidth: 1,
             pointRadius: 0, // プロットポイントのサイズ（小さく設定）
             pointHoverRadius: 4, // ホバー時のポイントサイズ
@@ -363,7 +389,7 @@ const chart = new Chart(graphCtx, {
         }, {
             label: 'EAR Right Raw',
             data: [], // Y軸データ
-            borderColor: 'rgb(255, 202, 158)',
+            borderColor: 'rgb(129, 198, 255)',
             borderWidth: 1,
             pointRadius: 0, // プロットポイントのサイズ（小さく設定）
             pointHoverRadius: 4, // ホバー時のポイントサイズ
@@ -371,20 +397,38 @@ const chart = new Chart(graphCtx, {
         }, {
             label: 'EAR Left',
             data: [], // Y軸データ
-            borderColor: 'rgb(51, 82, 255)',
-            borderWidth: 1,
+            borderColor: 'rgb(255, 89, 0)',
+            borderWidth: 1.2,
             pointRadius: 0, // プロットポイントのサイズ（小さく設定）
             pointHoverRadius: 4, // ホバー時のポイントサイズ
             fill: false,
         }, {
             label: 'EAR Right',
             data: [], // Y軸データ
-            borderColor: 'rgb(255, 113, 47)',
-            borderWidth: 1,
+            borderColor: 'rgb(0, 140, 255)',
+            borderWidth: 1.2,
             pointRadius: 0, // プロットポイントのサイズ（小さく設定）
             pointHoverRadius: 4, // ホバー時のポイントサイズ
             fill: false,
-        }]
+        }
+            // , {
+            //     label: 'Wrong EAR Left Raw',
+            //     data: [], // Y軸データ
+            //     borderColor: 'rgb(0, 88, 88)',
+            //     borderWidth: 1,
+            //     pointRadius: 0, // プロットポイントのサイズ（小さく設定）
+            //     pointHoverRadius: 4, // ホバー時のポイントサイズ
+            //     fill: false,
+            // }, {
+            //     label: 'Wrong EAR Right Raw',
+            //     data: [], // Y軸データ
+            //     borderColor: 'rgb(153, 69, 0)',
+            //     borderWidth: 1,
+            //     pointRadius: 0, // プロットポイントのサイズ（小さく設定）
+            //     pointHoverRadius: 4, // ホバー時のポイントサイズ
+            //     fill: false,
+            // }
+        ]
     },
     options: {
         responsive: true,
@@ -398,7 +442,6 @@ const chart = new Chart(graphCtx, {
                 }
             },
             y: {
-                beginAtZero: true,
                 title: {
                     display: true,
                     text: 'EAR Value'
@@ -416,6 +459,9 @@ function updateChartAndDisplay() {
     const latestEarLeftDatas = EarLeftDatas.slice(-1000);
     const latestEarRightDatas = EarRightDatas.slice(-1000);
 
+    //const wlatestEarLeftRawDatas = wEarLeftRawDatas.slice(-1000);
+    //const wlatestEarRightRawDatas = wEarRightRawDatas.slice(-1000);
+
     // グラフのデータを更新
     chart.data.labels = latestEarLeftDatas.map(data => Math.round(data.timestamp)); // X軸にインデックス
     chart.data.labels.min = Math.round(latestEarLeftDatas[0].timestamp);
@@ -423,6 +469,9 @@ function updateChartAndDisplay() {
     chart.data.datasets[1].data = latestEarRightRawDatas.map(data => data.ear);
     chart.data.datasets[2].data = latestEarLeftDatas.map(data => data.ear);
     chart.data.datasets[3].data = latestEarRightDatas.map(data => data.ear);
+
+    //chart.data.datasets[4].data = wlatestEarLeftRawDatas.map(data => data.ear);
+    //chart.data.datasets[5].data = wlatestEarRightRawDatas.map(data => data.ear);
 
     // グラフを更新
     chart.update();
@@ -464,6 +513,11 @@ faceMesh.onResults((results) => {
         earDisplay.textContent = `EAR: ${Math.round(avgNromEAR * 100) / 100} (${Math.round(avgEAR * 100) / 100})`;
 
 
+        //const wleftEAR = wcalculateEAR(landmarks, LEFT_EYE);
+        //const wrightEAR = wcalculateEAR(landmarks, RIGHT_EYE);
+        //wEarLeftRawDatas.push({ timestamp: timestamp, ear: wleftEAR }); // データを配列に追加
+        //wEarRightRawDatas.push({ timestamp: timestamp, ear: wrightEAR }); // データを配列に追加
+
         EarLeftRawDatas.push({ timestamp: timestamp, ear: leftEAR }); // データを配列に追加
         EarRightRawDatas.push({ timestamp: timestamp, ear: rightEAR }); // データを配列に追加
 
@@ -474,10 +528,14 @@ faceMesh.onResults((results) => {
         trackBlink(avgNromEAR, timestamp);
 
         // メッシュを描画
-        drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 1 });
-        drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: '#FF3030', lineWidth: 1 });
-        drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: '#30FF30', lineWidth: 1 });
-        drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, { color: '#E0E0E0', lineWidth: 1 });
+        //drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 1 });
+        drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: 'rgb(255, 163, 113)', lineWidth: 1 });
+        drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: 'rgb(158, 255, 113)', lineWidth: 1 });
+
+
+        drawLandmarkIds(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, '#FF3030');
+        drawLandmarkIds(canvasCtx, landmarks, FACEMESH_LEFT_EYE, '#30FF30');
+        //drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, { color: '#E0E0E0', lineWidth: 1 });
 
         // EARに基づいてインジケータの状態を更新
         if (avgNromEAR > EarThreshold) {
@@ -492,6 +550,25 @@ faceMesh.onResults((results) => {
     canvasCtx.restore();
     calclateFPS();
 });
+
+function drawLandmarkIds(canvasCtx, landmarks, points, color) {
+    canvasCtx.fillStyle = color;
+    canvasCtx.font = "8px Arial";
+
+    points.forEach(([startIdx, endIdx]) => {
+        // startIdxのランドマークにIDを描画
+        const start = landmarks[startIdx];
+        if (start) {
+            canvasCtx.fillText(startIdx.toString(), start.x * canvasCtx.canvas.width, start.y * canvasCtx.canvas.height);
+        }
+
+        // endIdxのランドマークにIDを描画
+        const end = landmarks[endIdx];
+        if (end) {
+            canvasCtx.fillText(endIdx.toString(), end.x * canvasCtx.canvas.width, end.y * canvasCtx.canvas.height);
+        }
+    });
+}
 
 // 使用可能なカメラデバイスを取得
 async function getCameras() {
