@@ -30,8 +30,10 @@ let CheckSleapness = false;// 眠気をチェックするかのフラグ
 let isCalibrating = false;
 let CalibrationStartTime = null; // キャリブレーション開始時刻
 let CalibrationTime = 10000;
-var EarScaleFactor = 4.0;
-var EarShiftFactor = 0.0;
+var EarLeftScaleFactor = 4.0;
+var EarLeftShiftFactor = 0.0;
+var EarRightScaleFactor = 4.0;
+var EarRightShiftFactor = 0.0;
 
 // EAR計算用の目のランドマークインデックス
 const LEFT_EYE = [362, 385, 387, 263, 373, 380];
@@ -57,19 +59,33 @@ document.addEventListener("DOMContentLoaded", () => {
     window['EarThreshold'] = defaultEarThr;
     console.log(`Loaded EAR_THRESHOLD: ${EarThreshold}`);
 
-    const savedEarScale = localStorage.getItem("EarScaleFactor");
-    const defaultEarScale = savedEarScale ? parseFloat(savedEarScale) : 0.4; // 保存された値、またはデフォルト値
-    document.getElementById("earScaleSlider").value = defaultEarScale;
-    document.getElementById("earScaleValue").value = defaultEarScale;
-    window['EarScaleFactor'] = defaultEarScale;
-    console.log(`Loaded EarScaleFactor: ${EarScaleFactor}`);
+    const savedEarLeftScale = localStorage.getItem("EarLeftScaleFactor");
+    const defaultEarLeftScale = savedEarLeftScale ? parseFloat(savedEarLeftScale) : 0.4; // 保存された値、またはデフォルト値
+    document.getElementById("earLeftScaleSlider").value = defaultEarLeftScale;
+    document.getElementById("earLeftScaleValue").value = defaultEarLeftScale;
+    window['EarLeftScaleFactor'] = defaultEarLeftScale;
+    console.log(`Loaded EarScaleLeftFactor: ${EarLeftScaleFactor}`);
 
-    const savedEarShift = localStorage.getItem("EarShiftFactor");
-    const defaultEarShift = savedEarShift ? parseFloat(savedEarShift) : 0.0; // 保存された値、またはデフォルト値
-    document.getElementById("earShiftSlider").value = defaultEarShift;
-    document.getElementById("earShiftValue").value = defaultEarShift;
-    window['EarShiftFactor'] = defaultEarShift;
-    console.log(`Loaded EarShiftFactor: ${EarShiftFactor}`);
+    const savedEarLeftShift = localStorage.getItem("EarLeftShiftFactor");
+    const defaultEarLeftShift = savedEarLeftShift ? parseFloat(savedEarLeftShift) : 0.0; // 保存された値、またはデフォルト値
+    document.getElementById("earLeftShiftSlider").value = defaultEarLeftShift;
+    document.getElementById("earLeftShiftValue").value = defaultEarLeftShift;
+    window['EarLeftShiftFactor'] = defaultEarLeftShift;
+    console.log(`Loaded EarLeftShiftFactor: ${EarLeftShiftFactor}`);
+
+    const savedEarRightScale = localStorage.getItem("EarRightScaleFactor");
+    const defaultEarRightScale = savedEarRightScale ? parseFloat(savedEarRightScale) : 0.4; // 保存された値、またはデフォルト値
+    document.getElementById("earRightScaleSlider").value = defaultEarRightScale;
+    document.getElementById("earRightScaleValue").value = defaultEarRightScale;
+    window['EarRightScaleFactor'] = defaultEarRightScale;
+    console.log(`Loaded EarScaleRightFactor: ${EarRightScaleFactor}`);
+
+    const savedEarRightShift = localStorage.getItem("EarRightShiftFactor");
+    const defaultEarRightShift = savedEarRightShift ? parseFloat(savedEarRightShift) : 0.0; // 保存された値、またはデフォルト値
+    document.getElementById("earRightShiftSlider").value = defaultEarRightShift;
+    document.getElementById("earRightShiftValue").value = defaultEarRightShift;
+    window['EarRightShiftFactor'] = defaultEarRightShift;
+    console.log(`Loaded EarRightShiftFactor: ${EarRightShiftFactor}`);
 
     const savedSleepDetectThresholdTime = localStorage.getItem("SleepDetectThresholdTime");
     const defaultESleepDetectThresholdTime = savedSleepDetectThresholdTime ? parseFloat(savedSleepDetectThresholdTime) : 5000; // 保存された値、またはデフォルト値
@@ -245,25 +261,31 @@ function trackBlink(avgEAR, timestamp) {
             updateValue('durCriValue', DurCri, 'DurCri');
 
             // 最大値を取得
-            const maxEar = (Math.max(...EarLeftRawDatas.map(data => data.ear)) + Math.max(...EarRightRawDatas.map(data => data.ear))) / 2;
+            const maxEarLeft = Math.max(...EarLeftRawDatas.map(data => data.ear));
+            const maxEarRight = Math.max(...EarRightRawDatas.map(data => data.ear));
 
             // 最小値を取得
-            const minEar = (Math.min(...EarLeftRawDatas.map(data => data.ear)) + Math.min(...EarRightRawDatas.map(data => data.ear))) / 2;
+            const minEarLeft = Math.min(...EarLeftRawDatas.map(data => data.ear));
+            const minEarRight = Math.min(...EarRightRawDatas.map(data => data.ear));
 
             EarLeftDatas.length = 0;
             EarRightDatas.length = 0;
             EarLeftRawDatas.length = 0;
             EarRightRawDatas.length = 0;
 
-            //wEarLeftRawDatas.length = 0;
-            //wEarRightRawDatas.length = 0;
+            EarLeftScaleFactor = 1 / (maxEarLeft - minEarLeft);
+            updateValue('earLeftScaleSlider', EarLeftScaleFactor, 'EarLeftScaleFactor');
+            updateValue('earLeftScaleValue', EarLeftScaleFactor, 'EarLeftScaleFactor');
+            EarLeftShiftFactor = -minEarLeft * EarLeftScaleFactor;
+            updateValue('earLeftShiftSlider', EarLeftShiftFactor, 'EarLeftShiftFactor');
+            updateValue('earLeftShiftValue', EarLeftShiftFactor, 'EarLeftShiftFactor');
 
-            EarScaleFactor = 1 / (maxEar - minEar);
-            updateValue('earScaleSlider', EarScaleFactor, 'EarScaleFactor');
-            updateValue('earScaleValue', EarScaleFactor, 'EarScaleFactor');
-            EarShiftFactor = -minEar * EarScaleFactor;
-            updateValue('earShiftSlider', EarShiftFactor, 'EarShiftFactor');
-            updateValue('earShiftValue', EarShiftFactor, 'EarShiftFactor');
+            EarRightScaleFactor = 1 / (maxEarRight - minEarRight);
+            updateValue('earRightScaleSlider', EarRightScaleFactor, 'EarRightScaleFactor');
+            updateValue('earRightScaleValue', EarRightScaleFactor, 'EarRightScaleFactor');
+            EarRightShiftFactor = -minEarRight * EarRightScaleFactor;
+            updateValue('earRightShiftSlider', EarRightShiftFactor, 'EarRightShiftFactor');
+            updateValue('earRightShiftValue', EarRightShiftFactor, 'EarRightShiftFactor');
 
             CalibrationStartTime = null;
             isCalibrating = false;
@@ -272,25 +294,6 @@ function trackBlink(avgEAR, timestamp) {
         }
 
     }
-}
-
-// EARを計算
-function wcalculateEAR(landmarks, eyeIndices) {
-    const p1 = landmarks[eyeIndices[1]];
-    const p2 = landmarks[eyeIndices[5]];
-    const p3 = landmarks[eyeIndices[2]];
-    const p4 = landmarks[eyeIndices[4]];
-    const p0 = landmarks[eyeIndices[0]];
-    const p3_ = landmarks[eyeIndices[3]];
-
-    // 縦方向の距離
-    const vertical1 = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
-    const vertical2 = Math.sqrt((p4.x - p3.x) ** 2 + (p4.y - p3.y) ** 2);
-    // 横方向の距離
-    const horizontal = Math.sqrt((p0.x - p3_.x) ** 2 + (p0.y - p3_.y) ** 2);
-
-    // EAR計算
-    return (vertical1 + vertical2) / (2.0 * horizontal);
 }
 
 // EARを計算
@@ -410,25 +413,7 @@ const chart = new Chart(graphCtx, {
             pointRadius: 0, // プロットポイントのサイズ（小さく設定）
             pointHoverRadius: 4, // ホバー時のポイントサイズ
             fill: false,
-        }
-            // , {
-            //     label: 'Wrong EAR Left Raw',
-            //     data: [], // Y軸データ
-            //     borderColor: 'rgb(0, 88, 88)',
-            //     borderWidth: 1,
-            //     pointRadius: 0, // プロットポイントのサイズ（小さく設定）
-            //     pointHoverRadius: 4, // ホバー時のポイントサイズ
-            //     fill: false,
-            // }, {
-            //     label: 'Wrong EAR Right Raw',
-            //     data: [], // Y軸データ
-            //     borderColor: 'rgb(153, 69, 0)',
-            //     borderWidth: 1,
-            //     pointRadius: 0, // プロットポイントのサイズ（小さく設定）
-            //     pointHoverRadius: 4, // ホバー時のポイントサイズ
-            //     fill: false,
-            // }
-        ]
+        }]
     },
     options: {
         responsive: true,
@@ -459,9 +444,6 @@ function updateChartAndDisplay() {
     const latestEarLeftDatas = EarLeftDatas.slice(-1000);
     const latestEarRightDatas = EarRightDatas.slice(-1000);
 
-    //const wlatestEarLeftRawDatas = wEarLeftRawDatas.slice(-1000);
-    //const wlatestEarRightRawDatas = wEarRightRawDatas.slice(-1000);
-
     // グラフのデータを更新
     chart.data.labels = latestEarLeftDatas.map(data => Math.round(data.timestamp)); // X軸にインデックス
     chart.data.labels.min = Math.round(latestEarLeftDatas[0].timestamp);
@@ -469,9 +451,6 @@ function updateChartAndDisplay() {
     chart.data.datasets[1].data = latestEarRightRawDatas.map(data => data.ear);
     chart.data.datasets[2].data = latestEarLeftDatas.map(data => data.ear);
     chart.data.datasets[3].data = latestEarRightDatas.map(data => data.ear);
-
-    //chart.data.datasets[4].data = wlatestEarLeftRawDatas.map(data => data.ear);
-    //chart.data.datasets[5].data = wlatestEarRightRawDatas.map(data => data.ear);
 
     // グラフを更新
     chart.update();
@@ -503,8 +482,8 @@ faceMesh.onResults((results) => {
         const rightEAR = calculateEAR(landmarks, RIGHT_EYE);
         const avgEAR = (leftEAR + rightEAR) / 2;
 
-        const leftNromEAR = leftEAR * EarScaleFactor + EarShiftFactor;
-        const rightNromEAR = rightEAR * EarScaleFactor + EarShiftFactor;
+        const leftNromEAR = leftEAR * EarLeftScaleFactor + EarLeftShiftFactor;
+        const rightNromEAR = rightEAR * EarRightScaleFactor + EarRightShiftFactor;
 
         const avgNromEAR = (leftNromEAR + rightNromEAR) / 2;
 
@@ -529,12 +508,11 @@ faceMesh.onResults((results) => {
 
         // メッシュを描画
         //drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 1 });
-        drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: 'rgb(255, 163, 113)', lineWidth: 1 });
-        drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: 'rgb(158, 255, 113)', lineWidth: 1 });
+        drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: 'rgb(255, 162, 112)', lineWidth: 1 });
+        drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: 'rgb(122, 195, 255)', lineWidth: 1 });
 
-
-        drawLandmarkIds(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, '#FF3030');
-        drawLandmarkIds(canvasCtx, landmarks, FACEMESH_LEFT_EYE, '#30FF30');
+        // drawLandmarkIds(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, '#FF3030');
+        // drawLandmarkIds(canvasCtx, landmarks, FACEMESH_LEFT_EYE, '#30FF30');
         //drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, { color: '#E0E0E0', lineWidth: 1 });
 
         // EARに基づいてインジケータの状態を更新
@@ -556,16 +534,22 @@ function drawLandmarkIds(canvasCtx, landmarks, points, color) {
     canvasCtx.font = "8px Arial";
 
     points.forEach(([startIdx, endIdx]) => {
+        const val = 3.0;
+
         // startIdxのランドマークにIDを描画
         const start = landmarks[startIdx];
         if (start) {
-            canvasCtx.fillText(startIdx.toString(), start.x * canvasCtx.canvas.width, start.y * canvasCtx.canvas.height);
+            canvasCtx.fillText(startIdx.toString(),
+                (start.x * canvasCtx.canvas.width - canvasCtx.canvas.width / 2) * val + canvasCtx.canvas.width / 2,
+                (start.y * canvasCtx.canvas.height - canvasCtx.canvas.height / 2) * val + canvasCtx.canvas.height / 2);
         }
 
         // endIdxのランドマークにIDを描画
         const end = landmarks[endIdx];
         if (end) {
-            canvasCtx.fillText(endIdx.toString(), end.x * canvasCtx.canvas.width, end.y * canvasCtx.canvas.height);
+            canvasCtx.fillText(endIdx.toString(),
+                (end.x * canvasCtx.canvas.width - canvasCtx.canvas.width / 2) * val + canvasCtx.canvas.width / 2,
+                (end.y * canvasCtx.canvas.height - canvasCtx.canvas.height / 2) * val + canvasCtx.canvas.height / 2);
         }
     });
 }
