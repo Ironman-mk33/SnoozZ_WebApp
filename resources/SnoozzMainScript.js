@@ -601,6 +601,17 @@ function exportCSVs() {
 }
 
 // CSVデータ書き出し
+function exportData1() {
+    exportBlinkDatasToCSV();
+}
+
+// CSVデータ書き出し
+function exportData2() {
+    exportEARDatasToCSV();
+}
+
+
+// CSVデータ書き出し
 function exportBlinkDatasToCSV() {
     const header = ['Timestamp', 'BlinkDuration(ms)', 'Long10', 'DurMean', 'SleapnessC', 'SleapnessD']; // ヘッダーを定義
     const rows = BlinkDatas.map((data, index) => {

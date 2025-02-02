@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaPipe FaceMesh with FFmpeg.wasm</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+</head>
+
+<body>
+    <h1>FaceMesh Video Processing with MediaPipe</h1>
+    <input type="file" id="videoInput" accept="video/mp4,video/mov" />
+    <button id="generateVideo">Generate Video with FaceMesh</button>
+    <a id="downloadLink" style="display: none;">Download Video</a>
+
+    <script src="{{ url_for('static', filename='ffmpeg.js') }}"></script>
+    <script>
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        const ffmpeg = createFFmpeg({ log: true });
+
+        const videoInput = document.getElementById('videoInput');
+        const generateVideoButton = document.getElementById('generateVideo');
+        const downloadLink = document.getElementById('downloadLink');
+
+        // Mediapipe FaceMesh設定
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+        });
+
+        faceMesh.setOptions({
+            selfieMode: true,
+            modelSelection: 1,
+            smoothLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        faceMesh.onResults(drawFaceMesh);
+
+        generateVideoButton.addEventListener('click', async () => {
+            if (!ffmpeg.isLoaded()) {
+                await ffmpeg.load();
+            }
+
+            console.log(`AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`);
+
+            const files = videoInput.files;
+            if (!files.length) {
+                alert('Please select a MOV or MP4 video to process.');
+                return;
+            }
+
+
+            console.log(`BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB`);
+
+            const videoFile = files[0];
+            const videoFileName = 'input_video.mov';
+            ffmpeg.FS('writeFile', videoFileName, await fetchFile(videoFile));
+
+            // Create a canvas for processing video frames
+            const videoElement = document.createElement('video');
+            const canvasElement = document.createElement('canvas');
+            const context = canvasElement.getContext('2d');
+
+            // Play the video and process it frame by frame
+            videoElement.src = URL.createObjectURL(videoFile);
+            videoElement.onloadeddata = async () => {
+
+
+                console.log(`CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC`);
+                const videoWidth = videoElement.videoWidth;
+                const videoHeight = videoElement.videoHeight;
+
+                canvasElement.width = videoWidth;
+                canvasElement.height = videoHeight;
+
+                // Set FFmpeg to extract frames from the video
+                await ffmpeg.run(
+                    '-i', videoFileName,
+                    '-f', 'image2pipe', // Output as a pipe
+                    'pipe:1'
+                );
+
+                console.log(`DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD`);
+
+                // Process frames using MediaPipe FaceMesh
+                const frameCount = Math.floor(videoElement.duration * 30); // Assuming 30 FPS
+                for (let i = 0; i < frameCount; i++) {
+
+                    console.log(`EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE`);
+                    context.drawImage(videoElement, 0, 0, videoWidth, videoHeight);
+
+                    // Send the current frame to MediaPipe for FaceMesh detection
+                    await faceMesh.send({ image: canvasElement });
+
+                    // Process the frame and overlay the face mesh on the canvas
+                    // You can capture the canvas image with the face mesh landmarks drawn
+                    const frameData = canvasElement.toDataURL('image/jpeg');
+                    const frameBuffer = await fetchFile(frameData);
+
+                    // Save this frame for reconstruction using FFmpeg
+                    ffmpeg.FS('writeFile', `frame_${i.toString().padStart(3, '0')}.jpg`, frameBuffer);
+
+                    console.log(`XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX`);
+                }
+
+                // Reconstruct video with processed frames
+                const outputFileName = 'output_with_facemesh.mov';
+                await ffmpeg.run(
+                    '-framerate', '30', // FPS of the processed video
+                    '-i', 'frame_%03d.jpg', // Input image frames
+                    '-c:v', 'libx264', // Video codec
+                    '-pix_fmt', 'yuv420p', // Pixel format
+                    '-movflags', '+faststart', // Optimize for streaming
+                    outputFileName // Output file name
+                );
+
+                // Fetch the processed video
+                const data = ffmpeg.FS('readFile', outputFileName);
+
+                // Create a Blob and generate a download link
+                const blob = new Blob([data.buffer], { type: 'video/quicktime' });
+                const url = URL.createObjectURL(blob);
+                downloadLink.href = url;
+                downloadLink.download = outputFileName;
+                downloadLink.style.display = 'block';
+                downloadLink.textContent = 'Download Video with FaceMesh';
+            };
+        });
+
+        // Function to draw FaceMesh landmarks on the canvas
+        function drawFaceMesh(results) {
+            const canvasCtx = document.querySelector('canvas').getContext('2d');
+            canvasCtx.clearRect(0, 0, canvasCtx.canvas.width, canvasCtx.canvas.height);
+
+            if (results.multiFaceLandmarks) {
+                results.multiFaceLandmarks.forEach(landmarks => {
+                    for (let i = 0; i < landmarks.length; i++) {
+                        const { x, y } = landmarks[i];
+                        canvasCtx.beginPath();
+                        canvasCtx.arc(x * canvasCtx.canvas.width, y * canvasCtx.canvas.height, 1, 0, 2 * Math.PI);
+                        canvasCtx.fill();
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+
+</html>

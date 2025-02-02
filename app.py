@@ -1,10 +1,21 @@
 from flask import Flask, render_template
+from flask_cors import CORS
 
 app = Flask(__name__,static_folder='resources')
+
+# Flask-CORSの設定
+CORS(app)
 
 # SSL証明書と秘密鍵のファイルパスを指定します
 ssl_certfile = 'ssl\cert.pem'  # 証明書のパス
 ssl_keyfile = 'ssl\privkey.pem'  # 秘密鍵のパス
+
+# 追加のHTTPヘッダーを設定
+# @app.after_request
+# def apply_cors_headers(response):
+#     response.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
+#     response.headers['Cross-Origin-Embedder-Policy'] = 'require-corp'
+#     return response
 
 @app.route('/')
 def index():
@@ -21,6 +32,14 @@ def DevView():
 @app.route("/HolisticDemo")
 def HolisticDemo():
     return render_template('HolisticDemo.html')
+
+@app.route("/EffectMeasurement")
+def EffectMeasurement():
+    return render_template('EffectMeasurement.html')
+
+@app.route("/VideoInput")
+def VideoInput():
+    return render_template('VideoInput.html')
 
 
 if __name__ == '__main__':

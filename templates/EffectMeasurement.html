@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drowsiness detecter</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+
+        .camera-container {
+            display: flex;
+            align-content: stretch;
+            position: relative;
+            border: 5px solid #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: none;
+            width: 100%;
+        }
+
+        .fps-display {
+            display: none;
+            position: absolute;
+            top: 5px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .ear-display {
+            display: none;
+            position: absolute;
+            top: 30px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .blinktime-display {
+            display: none;
+            position: absolute;
+            top: 55px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .durmean-display {
+            display: none;
+            position: absolute;
+            top: 80px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .long10-display {
+            display: none;
+            position: absolute;
+            top: 105px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .slpc-display {
+            display: none;
+            position: absolute;
+            top: 130px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .slpd-display {
+            display: none;
+            position: absolute;
+            top: 155px;
+            left: 10px;
+            padding: 5px 5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .indicator-container {
+            margin-top: 10px;
+            text-align: center;
+            width: 100%;
+        }
+
+        .indicator {
+            display: flex;
+            position: fixed;
+            top: 0;
+            left: 0;
+            /* justify-content: center; */
+            /* align-items: center; */
+            /* width: 100vw; */
+            /* height: 100vh; */
+            border-radius: 0;
+            /* font-size: 80vw; */
+            font-weight: bold;
+            /* color: white; */
+            text-align: center;
+            z-index: 9999;
+        }
+
+        .indicator[data-state="open"]::before {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* width: 100vw; */
+            /* height: 100vh; */
+            /* background-color: rgb(159, 225, 255); */
+            content: "😳";
+            text-align: center;
+        }
+
+        .indicator[data-state="close"]::before {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* width: 100vw; */
+            /* height: 100vh; */
+            /* background-color: rgb(255, 201, 201); */
+            content: "😌";
+            text-align: center;
+        }
+
+        .indicator[data-state="nofacedetected"]::before {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* width: 100vw; */
+            /* height: 100vh; */
+            /* background-color: rgb(129, 129, 129); */
+            content: "🫥";
+            text-align: center;
+        }
+
+        video {
+            display: flex;
+        }
+
+        /* 赤い背景で警告表示 */
+        .warning {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 0, 0, 1.0);
+            color: rgb(47, 0, 0);
+            font-size: 60px;
+            font-weight: bold;
+            text-align: center;
+            justify-content: center;
+            align-items: center;
+            z-index: -1;
+            /*writing-mode: vertical-rl;*/
+            /* 縦書き */
+        }
+
+        /* 黄色い背景で注意表示 */
+        .caution {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 196, 0, 0.8);
+            color: rgb(47, 0, 0);
+            font-size: 60px;
+            font-weight: bold;
+            text-align: center;
+            justify-content: center;
+            align-items: center;
+            z-index: -1;
+            /*writing-mode: vertical-rl;*/
+            /* 縦書き */
+        }
+
+        /* キャリブレーション */
+        .Calibrating {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 15%;
+            background-color: rgba(116, 116, 116, 0.8);
+            color: rgb(255, 255, 255);
+            font-size: 30px;
+            font-weight: bold;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            /*writing-mode: vertical-rl;*/
+            /* 縦書き */
+        }
+
+        .tab-header {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            color: rgb(0, 0, 0);
+            background-color: #f0f0f0;
+            border: none;
+            border-bottom: 2px solid transparent;
+            transition: background-color 0.3s, border-bottom-color 0.3s;
+        }
+
+        .tab-button.active {
+            background-color: #ffffff;
+            border-bottom: 2px solid #007bff;
+            color: #007bff;
+            font-weight: bold;
+        }
+
+        .tab-button:hover {
+            background-color: #e0e0e0;
+            color: rgb(0, 0, 0);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        /* 通常時のボタンスタイル */
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            /* スムーズな切り替え */
+        }
+
+        /* 非活性時のスタイル */
+        button:disabled {
+            background-color: #d3d3d3;
+            /* 灰色 */
+            color: #808080;
+            /* 灰色の文字 */
+            cursor: not-allowed;
+            /* カーソルを禁止マークにする */
+        }
+
+        #graph-container {
+            width: 100vw;
+            height: 300px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="eyeState" class="indicator"></div>
+    <div class="camera-container">
+        <canvas id="canvas"></canvas>
+        <video id="video" playsinline></video>
+        <div id="fpsDisplay" class="fps-display">FPS: 0</div>
+        <div id="earDisplay" class="ear-display">EAR: 0</div>
+        <div id="blinktimeDisplay" class="blinktime-display">BlinkTime: 0</div>
+        <div id="durmeanDisplay" class="durmean-display">DurMean: 0</div>
+        <div id="long10Display" class="long10-display">Long10: 0</div>
+        <div id="slpcDisplay" class="slpc-display">SleapnessC: Measuring...</div>
+        <div id="slpdDisplay" class="slpd-display">SleapnessD: Measuring...</div>
+        <div id="cautionMessage" class="caution" style="display: none;">
+            Drowsiness detected
+        </div>
+        <div id="warningMessage" class="warning" style="display: none;">
+            Sleep detected
+        </div>
+    </div>
+
+    <div display="none">
+
+    </div>
+
+    <div class="indicator-container">
+        <!-- タブヘッダー -->
+        <div class="tab-header">
+            <!-- <button class="tab-button active" onclick="openTab('eyeStateTab')">Eye State</button> -->
+            <button class="tab-button" onclick="openTab('blinkDataTab')">Blink Data</button>
+            <button class="tab-button" onclick="openTab('settingTab')">Setting</button>
+            <button class="tab-button" onclick="openTab('graphTab')">Graph</button>
+        </div>
+        <!-- タブコンテンツ -->
+        <!-- <div class="tab-content" id="eyeStateTab">
+                <div id="eyeState" class="indicator">Loading...</div>
+            </div> -->
+        <div class="tab-content" id="blinkDataTab" style="display:none;">
+            <div id="blinkDataGrid"
+                style="display: grid; grid-template-columns: 1fr; gap: 5px; margin-top: 10px; width: 100%; border: 1px solid #ccc; border-radius: 5px; overflow: hidden;">
+            </div>
+        </div>
+        <div class="tab-content" id="settingTab" style="display:none;">
+            <div style="margin-top: 10px; width: 100%; display: flex; flex-direction: column; align-items: flex-start;">
+                <!-- durCri設定 -->
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="durCriSlider" style="margin-right: 10px; width: 30%;">DurCri: </label>
+                    <input type="number" id="durCriValue" min="50" max="200" step="5" value="100"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('durCriSlider',this.value,'DurCri')">
+                    <input type="range" id="durCriSlider" min="50" max="200" step="5" value="100" style="width: 70%;"
+                        oninput="updateValue('durCriValue',this.value,'DurCri')">
+                </div>
+
+                <!-- 瞬目EAR閾値 -->
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="earThrSlider" style="margin-right: 10px; width: 30%;">EarThr: </label>
+                    <input type="number" id="earThrValue" min="0.0" max="1.0" step="0.01" value="0.5"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('earThrSlider',this.value,'EarThreshold')">
+                    <input type="range" id="earThrSlider" min="0.0" max="1.0" step="0.01" value="0.5"
+                        style="width: 70%;" oninput="updateValue('earThrValue',this.value,'EarThreshold')">
+                </div>
+
+                <!-- 正規化 -->
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="earLeftScaleSlider" style="margin-right: 10px; width: 30%;">EarLeftScaleFactor: </label>
+                    <input type="number" id="earLeftScaleValue" min="0.0" max="10.0" step="0.01" value="0.4"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('earLeftScaleSlider',this.value,'EarLeftScaleFactor')">
+                    <input type="range" id="earLeftScaleSlider" min="0.0" max="10.0" step="0.01" value="0.4"
+                        style="width: 70%;" oninput="updateValue('earLeftScaleValue',this.value,'EarLeftScaleFactor')">
+                </div>
+
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="earLeftShiftSlider" style="margin-right: 10px; width: 30%;">EarLeftShiftFactor: </label>
+                    <input type="number" id="earLeftShiftValue" min="-1.0" max="1.0" step="0.01" value="0.1"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('earLeftShiftSlider',this.value,'EarLeftShiftFactor')">
+                    <input type="range" id="earLeftShiftSlider" min="-1.0" max="1.0" step="0.01" value="0.1"
+                        style="width: 70%;" oninput="updateValue('earLeftShiftValue',this.value,'EarLeftShiftFactor')">
+                </div>
+
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="earRightScaleSlider" style="margin-right: 10px; width: 30%;">EarRightScaleFactor:
+                    </label>
+                    <input type="number" id="earRightScaleValue" min="0.0" max="10.0" step="0.01" value="0.4"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('earRightScaleSlider',this.value,'EarRightScaleFactor')">
+                    <input type="range" id="earRightScaleSlider" min="0.0" max="10.0" step="0.01" value="0.4"
+                        style="width: 70%;"
+                        oninput="updateValue('earRightScaleValue',this.value,'EarRightScaleFactor')">
+                </div>
+
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="earRightShiftSlider" style="margin-right: 10px; width: 30%;">EarRightShiftFactor:
+                    </label>
+                    <input type="number" id="earRightShiftValue" min="-1.0" max="1.0" step="0.01" value="0.1"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('earRightShiftSlider',this.value,'EarRightShiftFactor')">
+                    <input type="range" id="earRightShiftSlider" min="-1.0" max="1.0" step="0.01" value="0.1"
+                        style="width: 70%;"
+                        oninput="updateValue('earRightShiftValue',this.value,'EarRightShiftFactor')">
+                </div>
+
+
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label for="SleepDetectThresholdTimeSlider"
+                        style="margin-right: 10px; width: 30%;">SleepDetectThresholdTime: </label>
+                    <input type="number" id="SleepDetectThresholdTimeValue" min="0.0" max="50000" step="1" value="3000"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('SleepDetectThresholdTimeSlider',this.value,'SleepDetectThresholdTime')">
+                    <input type="range" id="SleepDetectThresholdTimeSlider" min="0.0" max="50000" step="1" value="3000"
+                        style="width: 70%;"
+                        oninput="updateValue('SleepDetectThresholdTimeValue',this.value,'SleepDetectThresholdTime')">
+                </div>
+
+                <!-- Calibration ボタン -->
+                <div style="margin-top: 20px; width: 100%; text-align: center;">
+                    <button id="calibrationButton"
+                        style="padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;"
+                        onclick="startCalibration()">Calibration</button>
+                </div>
+
+                <!-- exportData1 ボタン -->
+                <div style="margin-top: 20px; width: 100%; text-align: center;">
+                    <button id="exportCSVButton"
+                        style="padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;"
+                        onclick="exportData1()">Export Data #1</button>
+                </div>
+
+                <!-- exportData2 ボタン -->
+                <div style="margin-top: 20px; width: 100%; text-align: center;">
+                    <button id="exportCSVButton"
+                        style="padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;"
+                        onclick="exportData2()">Export Data #2</button>
+                </div>
+            </div>
+        </div>
+        <div class="tab-content" id="graphTab" style="display: none;">
+            <!-- <div class="graph-container">
+                <canvas id="earGraph"></canvas>
+            </div> -->
+            <div id="graph-container">
+                <canvas id="earGraph" style="width: 100%; height: 100%;"></canvas>
+            </div>
+        </div>
+
+
+    </div>
+
+
+
+    <div id="calibratingMessage" class="Calibrating" style="display: none;">
+        Calibrating...
+    </div>
+
+
+
+    <script src="{{ url_for('static', filename='SnoozzMainScript.js') }}"></script>
+
+</body>
+
+</html>
