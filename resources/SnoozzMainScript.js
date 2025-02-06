@@ -29,7 +29,7 @@ let SleapnessD = 0.0;
 let CheckSleapness = false;// 眠気をチェックするかのフラグ
 let isCalibrating = false;
 let CalibrationStartTime = null; // キャリブレーション開始時刻
-let CalibrationTime = 10000;
+let CalibrationTime = 5 * 60 * 1000;
 var EarLeftScaleFactor = 4.0;
 var EarLeftShiftFactor = 0.0;
 var EarRightScaleFactor = 4.0;
@@ -254,7 +254,7 @@ function trackBlink(avgEAR, timestamp) {
         const calibElapsedTime = timestamp - CalibrationStartTime;
         calibratingMessage.innerHTML = `Calibration in progress...<br>(${Math.round((calibElapsedTime / CalibrationTime) * 100)} %)`;
 
-        if (calibElapsedTime >= 10000) {
+        if (calibElapsedTime >= CalibrationTime) {
 
             DurCri = DurMean;
             updateValue('durCriSlider', DurCri, 'DurCri');

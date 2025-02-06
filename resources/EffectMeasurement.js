@@ -29,7 +29,7 @@ let SleapnessD = 0.0;
 let CheckSleapness = false;// 眠気をチェックするかのフラグ
 let isCalibrating = false;
 let CalibrationStartTime = null; // キャリブレーション開始時刻
-let CalibrationTime = 10000;
+let CalibrationTime = 5 * 60 * 1000;
 var EarLeftScaleFactor = 4.0;
 var EarLeftShiftFactor = 0.0;
 var EarRightScaleFactor = 4.0;
@@ -256,7 +256,7 @@ function trackBlink(avgEAR, timestamp) {
         const calibElapsedTime = timestamp - CalibrationStartTime;
         calibratingMessage.innerHTML = `Calibration in progress...<br>(${Math.round((calibElapsedTime / CalibrationTime) * 100)} %)`;
 
-        if (calibElapsedTime >= 10000) {
+        if (calibElapsedTime >= CalibrationTime) {
 
             DurCri = DurMean;
             updateValue('durCriSlider', DurCri, 'DurCri');
@@ -415,6 +415,14 @@ const chart = new Chart(graphCtx, {
             pointRadius: 0, // プロットポイントのサイズ（小さく設定）
             pointHoverRadius: 4, // ホバー時のポイントサイズ
             fill: false,
+        }, {
+            label: 'Radio Button',
+            data: [], // Y軸データ
+            borderColor: 'rgb(0, 140, 255)',
+            borderWidth: 0.0,
+            pointRadius: 0, // プロットポイントのサイズ（小さく設定）
+            pointHoverRadius: 4, // ホバー時のポイントサイズ
+            fill: false,
         }]
     },
     options: {
@@ -440,6 +448,11 @@ const chart = new Chart(graphCtx, {
 
 // 最新100データを抽出してグラフとHTMLに反映する関数
 function updateChartAndDisplay() {
+    if (EarLeftRawDatas.length === 0) return;
+    if (EarRightRawDatas.length === 0) return;
+    if (EarLeftDatas.length === 0) return;
+    if (EarRightDatas.length === 0) return;
+
     // 最新100データを取得
     const latestEarLeftRawDatas = EarLeftRawDatas.slice(-1000);
     const latestEarRightRawDatas = EarRightRawDatas.slice(-1000);
@@ -500,18 +513,18 @@ faceMesh.onResults((results) => {
         //wEarRightRawDatas.push({ timestamp: timestamp, ear: wrightEAR }); // データを配列に追加
 
         EarLeftRawDatas.push({ timestamp: timestamp, ear: leftEAR, radioButton: radioButtonValue }); // データを配列に追加
-        EarRightRawDatas.push({ timestamp: timestamp, ear: rightEAR }); // データを配列に追加
+        EarRightRawDatas.push({ timestamp: timestamp, ear: rightEAR, radioButton: radioButtonValue }); // データを配列に追加
 
-        EarLeftDatas.push({ timestamp: timestamp, ear: leftNromEAR }); // データを配列に追加
-        EarRightDatas.push({ timestamp: timestamp, ear: rightNromEAR }); // データを配列に追加
+        EarLeftDatas.push({ timestamp: timestamp, ear: leftNromEAR, radioButton: radioButtonValue }); // データを配列に追加
+        EarRightDatas.push({ timestamp: timestamp, ear: rightNromEAR, radioButton: radioButtonValue }); // データを配列に追加
 
         // 瞬き時間を追跡
         trackBlink(avgNromEAR, timestamp);
 
         // メッシュを描画
         //drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 1 });
-        drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: 'rgb(255, 162, 112)', lineWidth: 1 });
-        drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: 'rgb(122, 195, 255)', lineWidth: 1 });
+        //drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: 'rgb(255, 162, 112)', lineWidth: 1 });
+        //drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: 'rgb(122, 195, 255)', lineWidth: 1 });
 
         // drawLandmarkIds(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, '#FF3030');
         // drawLandmarkIds(canvasCtx, landmarks, FACEMESH_LEFT_EYE, '#30FF30');
