@@ -29,13 +29,13 @@ let SleapnessD = 0.0;
 let CheckSleapness = false;// 眠気をチェックするかのフラグ
 let isCalibrating = false;
 let CalibrationStartTime = null; // キャリブレーション開始時刻
-let CalibrationTime = 5 * 60 * 1000;
+var CalibTime = null;
 var EarLeftScaleFactor = 4.0;
 var EarLeftShiftFactor = 0.0;
 var EarRightScaleFactor = 4.0;
 var EarRightShiftFactor = 0.0;
 
-var radioButtonValue = 0;
+var SelfEvalButtonValue = 0;
 
 // EAR計算用の目のランドマークインデックス
 const LEFT_EYE = [362, 385, 387, 263, 373, 380];
@@ -95,6 +95,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("SleepDetectThresholdTimeValue").value = defaultESleepDetectThresholdTime;
     window['SleepDetectThresholdTime'] = defaultESleepDetectThresholdTime;
     console.log(`Loaded SleepDetectThresholdTime: ${SleepDetectThresholdTime}`);
+
+    const savedCalibTime = localStorage.getItem("CalibTime");
+    const defaultCalibTime = savedCalibTime ? parseFloat(savedCalibTime) : 1000 * 60 * 5; // 保存された値、またはデフォルト値
+    document.getElementById("CalibTimeSlider").value = defaultCalibTime;
+    document.getElementById("CalibTimeValue").value = defaultCalibTime;
+    window['CalibTime'] = defaultCalibTime;
+    console.log(`Loaded defaultCalibTime: ${CalibTime}`);
 });
 
 // 汎用的なスライダーとテキストボックスの同期関数
@@ -254,9 +261,9 @@ function trackBlink(avgEAR, timestamp) {
         }
 
         const calibElapsedTime = timestamp - CalibrationStartTime;
-        calibratingMessage.innerHTML = `Calibration in progress...<br>(${Math.round((calibElapsedTime / CalibrationTime) * 100)} %)`;
+        calibratingMessage.innerHTML = `Calibration in progress...<br>(${Math.round((calibElapsedTime / CalibTime) * 100)} %)`;
 
-        if (calibElapsedTime >= CalibrationTime) {
+        if (calibElapsedTime >= CalibTime) {
 
             DurCri = DurMean;
             updateValue('durCriSlider', DurCri, 'DurCri');
@@ -415,15 +422,17 @@ const chart = new Chart(graphCtx, {
             pointRadius: 0, // プロットポイントのサイズ（小さく設定）
             pointHoverRadius: 4, // ホバー時のポイントサイズ
             fill: false,
-        }, {
-            label: 'Radio Button',
-            data: [], // Y軸データ
-            borderColor: 'rgb(0, 140, 255)',
-            borderWidth: 0.0,
-            pointRadius: 0, // プロットポイントのサイズ（小さく設定）
-            pointHoverRadius: 4, // ホバー時のポイントサイズ
-            fill: false,
-        }]
+        }
+            // , {
+            //     label: 'Self Evaluation',
+            //     data: [], // Y軸データ
+            //     borderColor: 'rgb(0, 140, 255)',
+            //     borderWidth: 1.2,
+            //     pointRadius: 0, // プロットポイントのサイズ（小さく設定）
+            //     pointHoverRadius: 4, // ホバー時のポイントサイズ
+            //     fill: false,
+            // }
+        ]
     },
     options: {
         responsive: true,
@@ -466,6 +475,7 @@ function updateChartAndDisplay() {
     chart.data.datasets[1].data = latestEarRightRawDatas.map(data => data.ear);
     chart.data.datasets[2].data = latestEarLeftDatas.map(data => data.ear);
     chart.data.datasets[3].data = latestEarRightDatas.map(data => data.ear);
+    //chart.data.datasets[4].data = latestEarRightDatas.map(data => data.selfEval);
 
     // グラフを更新
     chart.update();
@@ -506,29 +516,14 @@ faceMesh.onResults((results) => {
 
         earDisplay.textContent = `EAR: ${Math.round(avgNromEAR * 100) / 100} (${Math.round(avgEAR * 100) / 100})`;
 
+        EarLeftRawDatas.push({ timestamp: timestamp, ear: leftEAR, selfEval: SelfEvalButtonValue }); // データを配列に追加
+        EarRightRawDatas.push({ timestamp: timestamp, ear: rightEAR, selfEval: SelfEvalButtonValue }); // データを配列に追加
 
-        //const wleftEAR = wcalculateEAR(landmarks, LEFT_EYE);
-        //const wrightEAR = wcalculateEAR(landmarks, RIGHT_EYE);
-        //wEarLeftRawDatas.push({ timestamp: timestamp, ear: wleftEAR }); // データを配列に追加
-        //wEarRightRawDatas.push({ timestamp: timestamp, ear: wrightEAR }); // データを配列に追加
-
-        EarLeftRawDatas.push({ timestamp: timestamp, ear: leftEAR, radioButton: radioButtonValue }); // データを配列に追加
-        EarRightRawDatas.push({ timestamp: timestamp, ear: rightEAR, radioButton: radioButtonValue }); // データを配列に追加
-
-        EarLeftDatas.push({ timestamp: timestamp, ear: leftNromEAR, radioButton: radioButtonValue }); // データを配列に追加
-        EarRightDatas.push({ timestamp: timestamp, ear: rightNromEAR, radioButton: radioButtonValue }); // データを配列に追加
+        EarLeftDatas.push({ timestamp: timestamp, ear: leftNromEAR, selfEval: SelfEvalButtonValue }); // データを配列に追加
+        EarRightDatas.push({ timestamp: timestamp, ear: rightNromEAR, selfEval: SelfEvalButtonValue }); // データを配列に追加
 
         // 瞬き時間を追跡
         trackBlink(avgNromEAR, timestamp);
-
-        // メッシュを描画
-        //drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 1 });
-        //drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, { color: 'rgb(255, 162, 112)', lineWidth: 1 });
-        //drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, { color: 'rgb(122, 195, 255)', lineWidth: 1 });
-
-        // drawLandmarkIds(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, '#FF3030');
-        // drawLandmarkIds(canvasCtx, landmarks, FACEMESH_LEFT_EYE, '#30FF30');
-        //drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, { color: '#E0E0E0', lineWidth: 1 });
 
         // EARに基づいてインジケータの状態を更新
         if (avgNromEAR > EarThreshold) {
@@ -688,6 +683,60 @@ function exportEARDatasToCSV() {
     link.click(); // 自動的にダウンロード開始
 }
 
+function exportDataAsZIP() {
+    const zip = new JSZip();
+
+    // BlinkデータのCSV作成
+    const blinkHeader = ['Timestamp', 'BlinkDuration(ms)', 'Long10', 'DurMean', 'SleapnessC', 'SleapnessD'];
+    const blinkRows = BlinkDatas.map((data, index) => {
+        const long10Value = calculateLong10(BlinkDatas.slice(0, index + 1));
+        const durMeanValue = calculateDurMean(BlinkDatas.slice(0, index + 1));
+        const sleapnessCValue = calculateSleapnessC(long10Value);
+        const sleapnessDValue = calculateSleapnessD(durMeanValue);
+
+        return [
+            data.timestamp,
+            data.duration.toFixed(2),
+            long10Value.toFixed(2),
+            durMeanValue.toFixed(2),
+            sleapnessCValue.toFixed(2),
+            sleapnessDValue.toFixed(2),
+        ].join(',');
+    });
+    const blinkCSV = [blinkHeader.join(','), ...blinkRows].join('\n');
+    zip.file(`blink_data_${new Date().toISOString()}.csv`, blinkCSV);
+
+    // EARデータのCSV作成
+    const earHeader = ['Timestamp', 'RawLeftEAR', 'RawRightEAR', 'LeftEAR', 'RightEAR', 'SelfEval'];
+    const earRows = EarLeftRawDatas.map((data, index) => {
+        const rawLeftEAR = EarLeftRawDatas[index]?.ear ?? '';
+        const rawRightEAR = EarRightRawDatas[index]?.ear ?? '';
+        const leftEAR = EarLeftDatas[index]?.ear ?? '';
+        const rightEAR = EarRightDatas[index]?.ear ?? '';
+
+        return [
+            data.timestamp,
+            rawLeftEAR.toFixed(2),
+            rawRightEAR.toFixed(2),
+            leftEAR.toFixed(2),
+            rightEAR.toFixed(2),
+            data.selfEval ?? ''
+        ].join(',');
+    });
+    const earCSV = [earHeader.join(','), ...earRows].join('\n');
+    zip.file(`ear_data_${new Date().toISOString()}.csv`, earCSV);
+
+    // ZIPファイルを生成してダウンロード
+    zip.generateAsync({ type: 'blob' }).then((content) => {
+        const url = URL.createObjectURL(content);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Measurement_Data_${new Date().toISOString()}.zip`;
+        link.click();
+        URL.revokeObjectURL(url); // メモリ解放
+    });
+}
+
 // init
 async function init() {
     isCalibrating = true;
@@ -723,7 +772,7 @@ async function init() {
 }
 
 // すべてのラジオボタンを取得
-const radioButtons = document.querySelectorAll('input[name="radioGroup"]');
+const selfEvalRadioButtons = document.querySelectorAll('input[name="radioGroup"]');
 
 function getSelectedRadioValue() {
     // 選択されているラジオボタンを取得
@@ -737,33 +786,11 @@ function getSelectedRadioValue() {
 }
 
 // すべてのラジオボタンにイベントリスナーを追加
-radioButtons.forEach(radio => {
+selfEvalRadioButtons.forEach(radio => {
     radio.addEventListener('change', () => {
-        radioButtonValue = getSelectedRadioValue(); // 選択された値を取得
+        SelfEvalButtonValue = getSelectedRadioValue(); // 選択された値を取得
     });
 });
 
 
 init();
-
-/*
-処理A：
-    基準瞬目持続時間の計測
-    DurCri[ms]＝（5分間にした瞬目持続時間の合計[ms]/瞬目回数[回]）/300000[ms]
-
-処理B：B～Dは直近5分間の瞬目を対象とする→5分たった瞬目データは削除する
-    DurMean[ms]=（5分間にした瞬目持続時間の合計[ms]/瞬目回数[回]）
-    Long10=Nlong/(Nlong+NAnother)
-    Nlong = DurCri*1.1以上の個数
-    NAnother = 瞬目回数 - Nlong
-処理C：
-    SleapnessC=1.238+0.046*Long10
-処理D：
-    SleapnessD=-4.378+0.029*DurMean
-
-処理E：1分おきに判定
-    SleapnessC>3||SleapnessD>3
-    →警告
-    SleapnessC=<3&&SleapnessD=<3
-    →Bに戻る
-*/

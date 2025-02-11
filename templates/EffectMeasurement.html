@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body {
             display: flex;
@@ -306,6 +307,11 @@
             /* カーソルを禁止マークにする */
         }
 
+        #graph-container {
+            width: 100vw;
+            height: 300px;
+        }
+
         .radio-container {
             position: absolute;
             bottom: 0;
@@ -481,25 +487,31 @@
                         oninput="updateValue('SleepDetectThresholdTimeValue',this.value,'SleepDetectThresholdTime')">
                 </div>
 
-                <!-- Calibration ボタン -->
-                <div style="margin-top: 20px; width: 100%; text-align: center;">
+                <div style="display: flex; align-items: center; margin-bottom: 15px; width: 100%;">
+                    <label id="CalibTimeLabel" for="CalibTimeSlider" style="margin-right: 10px; width: 30%;">CalibTime:
+                    </label>
+                    <input type="number" id="CalibTimeValue" min="0" max="50000" step="1" value="30000"
+                        style="width: 10%; margin-right: 10px;"
+                        oninput="updateValue('CalibTimeSlider',this.value,'CalibTime')">
+                    <input type="range" id="CalibTimeSlider" min="0" max="50000" step="1" value="30000"
+                        style="width: 70%;" oninput="updateValue('CalibTimeValue',this.value,'CalibTime')">
+                </div>
+
+                <!-- ボタンのコンテナ -->
+                <div style="margin-bottom: 15px; width: 100%; display: flex; justify-content: center; gap: 20px;">
+                    <!-- Calibration ボタン -->
                     <button id="calibrationButton"
                         style="padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;"
-                        onclick="startCalibration()">Calibration</button>
-                </div>
+                        onclick="startCalibration()">
+                        Calibration
+                    </button>
 
-                <!-- exportData1 ボタン -->
-                <div style="margin-top: 20px; width: 100%; text-align: center;">
-                    <button id="exportCSVButton"
+                    <!-- Export Data ボタン -->
+                    <button id="exportDataButton"
                         style="padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;"
-                        onclick="exportData1()">Export Data #1</button>
-                </div>
-
-                <!-- exportData2 ボタン -->
-                <div style="margin-top: 20px; width: 100%; text-align: center;">
-                    <button id="exportCSVButton"
-                        style="padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;"
-                        onclick="exportData2()">Export Data #2</button>
+                        onclick="exportDataAsZIP()">
+                        Export Data
+                    </button>
                 </div>
             </div>
         </div>

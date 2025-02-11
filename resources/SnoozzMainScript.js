@@ -93,6 +93,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("SleepDetectThresholdTimeValue").value = defaultESleepDetectThresholdTime;
     window['SleepDetectThresholdTime'] = defaultESleepDetectThresholdTime;
     console.log(`Loaded SleepDetectThresholdTime: ${SleepDetectThresholdTime}`);
+
+    const savedCalibTime = localStorage.getItem("CalibTime");
+    const defaultCalibTime = savedCalibTime ? parseFloat(savedCalibTime) : 1000 * 60 * 5; // 保存された値、またはデフォルト値
+    document.getElementById("CalibTimeSlider").value = defaultCalibTime;
+    document.getElementById("CalibTimeValue").value = defaultCalibTime;
+    window['CalibTime'] = defaultCalibTime;
+    console.log(`Loaded defaultCalibTime: ${CalibTime}`);
 });
 
 // 汎用的なスライダーとテキストボックスの同期関数
@@ -252,9 +259,9 @@ function trackBlink(avgEAR, timestamp) {
         }
 
         const calibElapsedTime = timestamp - CalibrationStartTime;
-        calibratingMessage.innerHTML = `Calibration in progress...<br>(${Math.round((calibElapsedTime / CalibrationTime) * 100)} %)`;
+        calibratingMessage.innerHTML = `Calibration in progress...<br>(${Math.round((calibElapsedTime / CalibTime) * 100)} %)`;
 
-        if (calibElapsedTime >= CalibrationTime) {
+        if (calibElapsedTime >= CalibTime) {
 
             DurCri = DurMean;
             updateValue('durCriSlider', DurCri, 'DurCri');
@@ -670,6 +677,60 @@ function exportEARDatasToCSV() {
     link.href = url;
     link.download = `ear_data_${new Date().toISOString()}.csv`; // ファイル名を設定
     link.click(); // 自動的にダウンロード開始
+}
+
+function exportDataAsZIP() {
+    const zip = new JSZip();
+
+    // BlinkデータのCSV作成
+    const blinkHeader = ['Timestamp', 'BlinkDuration(ms)', 'Long10', 'DurMean', 'SleapnessC', 'SleapnessD'];
+    const blinkRows = BlinkDatas.map((data, index) => {
+        const long10Value = calculateLong10(BlinkDatas.slice(0, index + 1));
+        const durMeanValue = calculateDurMean(BlinkDatas.slice(0, index + 1));
+        const sleapnessCValue = calculateSleapnessC(long10Value);
+        const sleapnessDValue = calculateSleapnessD(durMeanValue);
+
+        return [
+            data.timestamp,
+            data.duration.toFixed(2),
+            long10Value.toFixed(2),
+            durMeanValue.toFixed(2),
+            sleapnessCValue.toFixed(2),
+            sleapnessDValue.toFixed(2),
+        ].join(',');
+    });
+    const blinkCSV = [blinkHeader.join(','), ...blinkRows].join('\n');
+    zip.file(`blink_data_${new Date().toISOString()}.csv`, blinkCSV);
+
+    // EARデータのCSV作成
+    const earHeader = ['Timestamp', 'RawLeftEAR', 'RawRightEAR', 'LeftEAR', 'RightEAR', 'SelfEval'];
+    const earRows = EarLeftRawDatas.map((data, index) => {
+        const rawLeftEAR = EarLeftRawDatas[index]?.ear ?? '';
+        const rawRightEAR = EarRightRawDatas[index]?.ear ?? '';
+        const leftEAR = EarLeftDatas[index]?.ear ?? '';
+        const rightEAR = EarRightDatas[index]?.ear ?? '';
+
+        return [
+            data.timestamp,
+            rawLeftEAR.toFixed(2),
+            rawRightEAR.toFixed(2),
+            leftEAR.toFixed(2),
+            rightEAR.toFixed(2),
+            data.selfEval ?? ''
+        ].join(',');
+    });
+    const earCSV = [earHeader.join(','), ...earRows].join('\n');
+    zip.file(`ear_data_${new Date().toISOString()}.csv`, earCSV);
+
+    // ZIPファイルを生成してダウンロード
+    zip.generateAsync({ type: 'blob' }).then((content) => {
+        const url = URL.createObjectURL(content);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Measurement_Data_${new Date().toISOString()}.zip`;
+        link.click();
+        URL.revokeObjectURL(url); // メモリ解放
+    });
 }
 
 // init
