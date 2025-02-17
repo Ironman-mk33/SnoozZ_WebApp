@@ -491,7 +491,7 @@ faceMesh.setOptions({
 
 // MediaPipeの検出完了イベント
 faceMesh.onResults((results) => {
-    const timestamp = performance.now(); // 現在の時刻を取得
+    const timestamp = Date.now(); // 現在の時刻を取得
     canvasElement.width = results.image.width;
     canvasElement.height = results.image.height;
 
