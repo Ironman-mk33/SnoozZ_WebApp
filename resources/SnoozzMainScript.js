@@ -9,6 +9,7 @@ const graphCtx = document.getElementById('earGraph').getContext('2d');
 var EarThreshold = 0.5; // 目を閉じているとみなす閾値
 var CheckInterval = 5; // 眠気をチェックするインターバル[s]
 let BlinkDatas = []; //瞬きデータを保持する { timestamp, duration } のオブジェクト配列
+let BlinkDatasForAnalyze = []; //瞬きデータを保持する { timestamp, duration } のオブジェクト配列
 let EarLeftDatas = []; //EARの配列
 let EarRightDatas = []; //EARの配列
 let EarLeftRawDatas = []; //EARの配列
@@ -29,7 +30,7 @@ let SleapnessD = 0.0;
 let CheckSleapness = false;// 眠気をチェックするかのフラグ
 let isCalibrating = false;
 let CalibrationStartTime = null; // キャリブレーション開始時刻
-let CalibrationTime = 5 * 60 * 1000;
+var CalibTime = null;
 var EarLeftScaleFactor = 4.0;
 var EarLeftShiftFactor = 0.0;
 var EarRightScaleFactor = 4.0;
@@ -234,6 +235,7 @@ function trackBlink(avgEAR, timestamp) {
         if (BlinkStartTime !== null) {
             CloseElapsedTime = timestamp - BlinkStartTime; // 瞬きの継続時間を計算
             BlinkDatas.push({ timestamp: currentTime, duration: CloseElapsedTime }); // データを配列に追加
+            BlinkDatasForAnalyze.push({ timestamp: currentTime, duration: CloseElapsedTime }); // データを配列に追加
             blinktimeDisplay.textContent = `BlinkTime: ${Math.round(CloseElapsedTime * 100) / 100} ms`;
             BlinkStartTime = null; // 瞬き状態をリセット
 
@@ -621,11 +623,11 @@ function exportData2() {
 // CSVデータ書き出し
 function exportBlinkDatasToCSV() {
     const header = ['Timestamp', 'BlinkDuration(ms)', 'Long10', 'DurMean', 'SleapnessC', 'SleapnessD']; // ヘッダーを定義
-    const rows = BlinkDatas.map((data, index) => {
-        const long10Value = index < BlinkDatas.length ? calculateLong10(BlinkDatas.slice(0, index + 1)) : '';
-        const durMeanValue = index < BlinkDatas.length ? calculateDurMean(BlinkDatas.slice(0, index + 1)) : '';
-        const sleapnessCValue = index < BlinkDatas.length ? calculateSleapnessC(calculateLong10(BlinkDatas.slice(0, index + 1))) : '';
-        const sleapnessDValue = index < BlinkDatas.length ? calculateSleapnessD(calculateDurMean(BlinkDatas.slice(0, index + 1))) : '';
+    const rows = BlinkDatasForAnalyze.map((data, index) => {
+        const long10Value = index < BlinkDatasForAnalyze.length ? calculateLong10(BlinkDatasForAnalyze.slice(0, index + 1)) : '';
+        const durMeanValue = index < BlinkDatasForAnalyze.length ? calculateDurMean(BlinkDatasForAnalyze.slice(0, index + 1)) : '';
+        const sleapnessCValue = index < BlinkDatasForAnalyze.length ? calculateSleapnessC(calculateLong10(BlinkDatasForAnalyze.slice(0, index + 1))) : '';
+        const sleapnessDValue = index < BlinkDatasForAnalyze.length ? calculateSleapnessD(calculateDurMean(BlinkDatasForAnalyze.slice(0, index + 1))) : '';
 
         return [
             data.timestamp, // タイムスタンプをISOフォーマットで
@@ -684,9 +686,9 @@ function exportDataAsZIP() {
 
     // BlinkデータのCSV作成
     const blinkHeader = ['Timestamp', 'BlinkDuration(ms)', 'Long10', 'DurMean', 'SleapnessC', 'SleapnessD'];
-    const blinkRows = BlinkDatas.map((data, index) => {
-        const long10Value = calculateLong10(BlinkDatas.slice(0, index + 1));
-        const durMeanValue = calculateDurMean(BlinkDatas.slice(0, index + 1));
+    const blinkRows = BlinkDatasForAnalyze.map((data, index) => {
+        const long10Value = calculateLong10(BlinkDatasForAnalyze.slice(0, index + 1));
+        const durMeanValue = calculateDurMean(BlinkDatasForAnalyze.slice(0, index + 1));
         const sleapnessCValue = calculateSleapnessC(long10Value);
         const sleapnessDValue = calculateSleapnessD(durMeanValue);
 
@@ -735,7 +737,7 @@ function exportDataAsZIP() {
 
 // init
 async function init() {
-    isCalibrating = true;
+    isCalibrating = false;
 
     const cameras = await getCameras();
     console.log('Available Cameras:', cameras);

@@ -1,10 +1,6 @@
 from flask import Flask, render_template
-from flask_cors import CORS
 
 app = Flask(__name__,static_folder='resources')
-
-# Flask-CORSの設定
-CORS(app)
 
 # SSL証明書と秘密鍵のファイルパスを指定します
 ssl_certfile = 'ssl\cert.pem'  # 証明書のパス

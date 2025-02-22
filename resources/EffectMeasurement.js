@@ -9,6 +9,7 @@ const graphCtx = document.getElementById('earGraph').getContext('2d');
 var EarThreshold = 0.5; // 目を閉じているとみなす閾値
 var CheckInterval = 5; // 眠気をチェックするインターバル[s]
 let BlinkDatas = []; //瞬きデータを保持する { timestamp, duration } のオブジェクト配列
+let BlinkDatasForAnalyze = []; //瞬きデータを保持する { timestamp, duration } のオブジェクト配列
 let EarLeftDatas = []; //EARの配列
 let EarRightDatas = []; //EARの配列
 let EarLeftRawDatas = []; //EARの配列
@@ -236,6 +237,7 @@ function trackBlink(avgEAR, timestamp) {
         if (BlinkStartTime !== null) {
             CloseElapsedTime = timestamp - BlinkStartTime; // 瞬きの継続時間を計算
             BlinkDatas.push({ timestamp: currentTime, duration: CloseElapsedTime }); // データを配列に追加
+            BlinkDatasForAnalyze.push({ timestamp: currentTime, duration: CloseElapsedTime, selfEval: SelfEvalButtonValue}); // データを配列に追加
             blinktimeDisplay.textContent = `BlinkTime: ${Math.round(CloseElapsedTime * 100) / 100} ms`;
             BlinkStartTime = null; // 瞬き状態をリセット
 
@@ -604,93 +606,14 @@ async function startCamera(deviceId) {
     }
 }
 
-// CSVデータ書き出し
-function exportCSVs() {
-    exportBlinkDatasToCSV();
-    exportEARDatasToCSV();
-}
-
-// CSVデータ書き出し
-function exportData1() {
-    exportBlinkDatasToCSV();
-}
-
-// CSVデータ書き出し
-function exportData2() {
-    exportEARDatasToCSV();
-}
-
-
-// CSVデータ書き出し
-function exportBlinkDatasToCSV() {
-    const header = ['Timestamp', 'BlinkDuration(ms)', 'Long10', 'DurMean', 'SleapnessC', 'SleapnessD']; // ヘッダーを定義
-    const rows = BlinkDatas.map((data, index) => {
-        const long10Value = index < BlinkDatas.length ? calculateLong10(BlinkDatas.slice(0, index + 1)) : '';
-        const durMeanValue = index < BlinkDatas.length ? calculateDurMean(BlinkDatas.slice(0, index + 1)) : '';
-        const sleapnessCValue = index < BlinkDatas.length ? calculateSleapnessC(calculateLong10(BlinkDatas.slice(0, index + 1))) : '';
-        const sleapnessDValue = index < BlinkDatas.length ? calculateSleapnessD(calculateDurMean(BlinkDatas.slice(0, index + 1))) : '';
-
-        return [
-            data.timestamp, // タイムスタンプをISOフォーマットで
-            data.duration.toFixed(2), // 瞬きの継続時間
-            long10Value.toFixed(2), // long10Value
-            durMeanValue.toFixed(2), // durMeanValue
-            sleapnessCValue.toFixed(2), // SleapnessC
-            sleapnessDValue.toFixed(2), // SleapnessD
-        ].join(',');
-    });
-
-    // ヘッダーとデータを結合してCSVフォーマット
-    const csvContent = [header.join(','), ...rows].join('\n');
-
-    // ダウンロードリンクを生成
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `blink_data_${new Date().toISOString()}.csv`; // ファイル名を設定
-    link.click(); // 自動的にダウンロード開始
-}
-
-// CSVデータ書き出し
-function exportEARDatasToCSV() {
-    const header = ['Timestamp', 'RawLeftEAR', 'RawRightEAR', 'LeftEAR', 'RightEAR', 'radioButton']; // ヘッダーを定義
-    const rows = EarLeftRawDatas.map((data, index) => {
-        const rawLeftEAR = index < EarLeftRawDatas.length ? EarLeftRawDatas[index].ear : '';
-        const rawRightEAR = index < EarLeftRawDatas.length ? EarRightRawDatas[index].ear : '';
-        const leftEAR = index < EarLeftRawDatas.length ? EarLeftDatas[index].ear : '';
-        const rightEAR = index < EarLeftRawDatas.length ? EarRightDatas[index].ear : '';
-
-        return [
-            data.timestamp,
-            rawLeftEAR.toFixed(2), // long10Value
-            rawRightEAR.toFixed(2), // durMeanValue
-            leftEAR.toFixed(2), // SleapnessC
-            rightEAR.toFixed(2), // SleapnessD
-            data.radioButton
-        ].join(',');
-    });
-
-    // ヘッダーとデータを結合してCSVフォーマット
-    const csvContent = [header.join(','), ...rows].join('\n');
-
-    // ダウンロードリンクを生成
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `ear_data_${new Date().toISOString()}.csv`; // ファイル名を設定
-    link.click(); // 自動的にダウンロード開始
-}
-
 function exportDataAsZIP() {
     const zip = new JSZip();
 
     // BlinkデータのCSV作成
-    const blinkHeader = ['Timestamp', 'BlinkDuration(ms)', 'Long10', 'DurMean', 'SleapnessC', 'SleapnessD'];
-    const blinkRows = BlinkDatas.map((data, index) => {
-        const long10Value = calculateLong10(BlinkDatas.slice(0, index + 1));
-        const durMeanValue = calculateDurMean(BlinkDatas.slice(0, index + 1));
+    const blinkHeader = ['Timestamp', 'BlinkDuration(ms)', 'Long10', 'DurMean', 'SleapnessC', 'SleapnessD','selfEval'];
+    const blinkRows = BlinkDatasForAnalyze.map((data, index) => {
+        const long10Value = calculateLong10(BlinkDatasForAnalyze.slice(0, index + 1));
+        const durMeanValue = calculateDurMean(BlinkDatasForAnalyze.slice(0, index + 1));
         const sleapnessCValue = calculateSleapnessC(long10Value);
         const sleapnessDValue = calculateSleapnessD(durMeanValue);
 
@@ -701,6 +624,7 @@ function exportDataAsZIP() {
             durMeanValue.toFixed(2),
             sleapnessCValue.toFixed(2),
             sleapnessDValue.toFixed(2),
+            data.selfEval  ?? ''
         ].join(',');
     });
     const blinkCSV = [blinkHeader.join(','), ...blinkRows].join('\n');
@@ -739,7 +663,7 @@ function exportDataAsZIP() {
 
 // init
 async function init() {
-    isCalibrating = true;
+    isCalibrating = false;
 
     const cameras = await getCameras();
     console.log('Available Cameras:', cameras);
